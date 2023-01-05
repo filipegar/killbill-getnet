@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
 
 /**
@@ -205,29 +207,8 @@ public class PaymentCredit {
 
 	@Override
 	public String toString() {
-		StringBuilder sb = new StringBuilder();
-		sb.append("class PaymentCredit {\n");
-
-		sb.append("    sellerId: ").append(toIndentedString(sellerId)).append("\n");
-		sb.append("    amount: ").append(toIndentedString(amount)).append("\n");
-		sb.append("    currency: ").append(toIndentedString(currency)).append("\n");
-		sb.append("    order: ").append(toIndentedString(order)).append("\n");
-		sb.append("    customer: ").append(toIndentedString(customer)).append("\n");
-		sb.append("    shippings: ").append(toIndentedString(shippings)).append("\n");
-		sb.append("    credit: ").append(toIndentedString(credit)).append("\n");
-		sb.append("}");
-		return sb.toString();
-	}
-
-	/**
-	 * Convert the given object to string with each line indented by 4 spaces
-	 * (except the first line).
-	 */
-	private String toIndentedString(java.lang.Object o) {
-		if (o == null) {
-			return "null";
-		}
-		return o.toString().replace("\n", "\n    ");
+		Gson gson = new GsonBuilder().setPrettyPrinting().create();
+		return gson.toJson(this);
 	}
 
 }

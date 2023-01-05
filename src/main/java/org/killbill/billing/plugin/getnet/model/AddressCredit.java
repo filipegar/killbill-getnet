@@ -18,7 +18,6 @@ import java.util.Objects;
 
 import com.google.gson.annotations.SerializedName;
 
-
 /**
  * Conjunto de dados referentes ao endereço do comprador
  */

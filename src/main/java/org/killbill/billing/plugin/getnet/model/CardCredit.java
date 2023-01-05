@@ -14,14 +14,9 @@
  */
 package org.killbill.billing.plugin.getnet.model;
 
-import java.io.IOException;
 import java.util.Objects;
 
-import com.google.gson.TypeAdapter;
-import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
 
 /**
  * Conjunto de dados do cartão.
@@ -36,63 +31,8 @@ public class CardCredit {
 	@SerializedName("security_code")
 	private String securityCode = null;
 
-	/**
-	 * Bandeira do cartão. Preenchido automaticamente pela API caso não seja
-	 * informado.&lt;/br&gt;&lt;b&gt;&lt;i&gt;Campo obrigatório para o &lt;a
-	 * href&#x3D;\&quot;https://developers.getnet.com.br/api#section/Antifraude/Dados-obrigatorios-para-analise-do-Antifraude\&quot;&gt;Antifraude&lt;/a&gt;&lt;/i&gt;&lt;/b&gt;
-	 */
-	@JsonAdapter(BrandEnum.Adapter.class)
-	public enum BrandEnum {
-		MASTERCARD("Mastercard"),
-
-		VISA("Visa"),
-
-		AMEX("Amex"),
-
-		ELO("Elo"),
-
-		HIPERCARD("Hipercard");
-
-		private String value;
-
-		BrandEnum(String value) {
-			this.value = value;
-		}
-
-		public String getValue() {
-			return value;
-		}
-
-		@Override
-		public String toString() {
-			return String.valueOf(value);
-		}
-
-		public static BrandEnum fromValue(String text) {
-			for (BrandEnum b : BrandEnum.values()) {
-				if (String.valueOf(b.value).equals(text)) {
-					return b;
-				}
-			}
-			return null;
-		}
-
-		public static class Adapter extends TypeAdapter<BrandEnum> {
-			@Override
-			public void write(final JsonWriter jsonWriter, final BrandEnum enumeration) throws IOException {
-				jsonWriter.value(enumeration.getValue());
-			}
-
-			@Override
-			public BrandEnum read(final JsonReader jsonReader) throws IOException {
-				String value = jsonReader.nextString();
-				return BrandEnum.fromValue(String.valueOf(value));
-			}
-		}
-	}
-
 	@SerializedName("brand")
-	private BrandEnum brand = null;
+	private String brand = null;
 
 	@SerializedName("expiration_month")
 	private String expirationMonth = null;
@@ -158,7 +98,7 @@ public class CardCredit {
 		this.securityCode = securityCode;
 	}
 
-	public CardCredit brand(BrandEnum brand) {
+	public CardCredit brand(String brand) {
 		this.brand = brand;
 		return this;
 	}
@@ -170,11 +110,11 @@ public class CardCredit {
 	 * 
 	 * @return brand
 	 **/
-	public BrandEnum getBrand() {
+	public String getBrand() {
 		return brand;
 	}
 
-	public void setBrand(BrandEnum brand) {
+	public void setBrand(String brand) {
 		this.brand = brand;
 	}
 

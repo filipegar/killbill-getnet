@@ -24,6 +24,8 @@ import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import org.killbill.billing.plugin.getnet.model.PaymentCredit;
+import org.killbill.billing.plugin.getnet.model.VaultCardResponse;
 import org.killbill.billing.plugin.util.http.HttpClient;
 import org.killbill.billing.plugin.util.http.InvalidRequest;
 import org.killbill.billing.plugin.util.http.ResponseFormat;
@@ -49,8 +51,9 @@ public class GetnetHttpClient extends HttpClient {
 		this.sellerId = configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "seller_id");
 		this.clientId = configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "client_id");
 		this.clientSecret = configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "client_secret");
+		this.accessToken = "";
 	}
-	
+
 	public void doLogin() {
 		String res = this.doLogin(clientId, clientSecret, sellerId);
 		JsonObject response = new Gson().fromJson(res, JsonObject.class);
@@ -84,11 +87,65 @@ public class GetnetHttpClient extends HttpClient {
 		throw new Error("Failed");
 	}
 
+	public VaultCardResponse exchangeTokenForNumberToken(String token) {
+		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
+				this.getAccessToken(), "seller_id", sellerId);
+		Map<String, String> query = ImmutableMap.of();
+
+		try {
+			return doCall(GET, url + "/v1/cards/" + token, "", query, headers, VaultCardResponse.class,
+					ResponseFormat.JSON);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (ExecutionException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (TimeoutException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (IOException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (URISyntaxException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (InvalidRequest e) {
+			logger.error("[GETNET]" + e.getMessage());
+		}
+
+		throw new Error("Failed");
+	}
+
+	public String sendPaymentRequest(PaymentCredit payment) {
+		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
+				this.getAccessToken());
+		Map<String, String> query = ImmutableMap.of();
+
+		payment.setSellerId(sellerId);
+
+		try {
+			return doCall(POST, url + "/v1/payments/credit", payment.toString(), query, headers, String.class,
+					ResponseFormat.TEXT);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (ExecutionException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (TimeoutException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (IOException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (URISyntaxException e) {
+			logger.error("[GETNET]" + e.getMessage());
+		} catch (InvalidRequest e) {
+			logger.error("[GETNET]" + e.getResponse().getResponseBody());
+		}
+
+		throw new Error("Failed");
+	}
+
 	public String getAccessToken() {
-		if(accessToken.isEmpty()) {
+		if (accessToken.isEmpty()) {
 			doLogin();
 		}
-		
+
 		return accessToken;
 	}
 

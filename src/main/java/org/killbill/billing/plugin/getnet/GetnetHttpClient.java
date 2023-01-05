@@ -24,6 +24,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import org.killbill.billing.payment.plugin.api.PaymentPluginApiException;
 import org.killbill.billing.plugin.getnet.model.PaymentCredit;
 import org.killbill.billing.plugin.getnet.model.VaultCardResponse;
 import org.killbill.billing.plugin.util.http.HttpClient;
@@ -113,7 +114,7 @@ public class GetnetHttpClient extends HttpClient {
 		throw new Error("Failed");
 	}
 
-	public String sendPaymentRequest(PaymentCredit payment) {
+	public String sendPaymentRequest(PaymentCredit payment) throws PaymentPluginApiException {
 		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
 				this.getAccessToken());
 		Map<String, String> query = ImmutableMap.of();
@@ -123,22 +124,9 @@ public class GetnetHttpClient extends HttpClient {
 		try {
 			return doCall(POST, url + "/v1/payments/credit", payment.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (ExecutionException e) {
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (TimeoutException e) {
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (IOException e) {
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (URISyntaxException e) {
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (InvalidRequest e) {
-			logger.error("[GETNET]" + e.getResponse().getResponseBody());
-		}
-
-		throw new Error("Failed");
+		} catch (InterruptedException|ExecutionException|TimeoutException|IOException|URISyntaxException|InvalidRequest e) {
+			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+		}	
 	}
 
 	public String getAccessToken() {

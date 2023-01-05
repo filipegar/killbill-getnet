@@ -24,7 +24,6 @@ import java.util.UUID;
 
 import org.joda.time.DateTime;
 import org.killbill.billing.catalog.api.Currency;
-import org.killbill.billing.currency.api.boilerplate.CurrencyConversionApiImp;
 import org.killbill.billing.osgi.libs.killbill.OSGIKillbillAPI;
 import org.killbill.billing.payment.api.PaymentApiException;
 import org.killbill.billing.payment.api.PaymentMethod;
@@ -38,6 +37,7 @@ import org.killbill.billing.payment.plugin.api.PaymentPluginApi;
 import org.killbill.billing.payment.plugin.api.PaymentPluginApiException;
 import org.killbill.billing.payment.plugin.api.PaymentPluginStatus;
 import org.killbill.billing.payment.plugin.api.PaymentTransactionInfoPlugin;
+import org.killbill.billing.plugin.api.payment.PluginPaymentTransactionInfoPlugin;
 import org.killbill.billing.plugin.getnet.model.BillingAddress;
 import org.killbill.billing.plugin.getnet.model.CardCredit;
 import org.killbill.billing.plugin.getnet.model.Credit;
@@ -80,73 +80,9 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public PaymentTransactionInfoPlugin authorizePayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
 			UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		logger.info("authorizePayment, kbAccountId=" + kbAccountId);
-		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin;
 
-		logger.info("authorizePayment, about to request card number token");
-		try {
-			final PaymentMethod paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId,
-					false, true, properties, context);
-			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
-			logger.info("authorizePayment, successfully retrieved card from vault.");
-
-			PaymentCredit getnetPayment = new PaymentCredit();
-			getnetPayment.setCurrency(currency.toString());
-			getnetPayment.setAmount(Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)));
-			Order order = new Order();
-			order.setOrderId(kbTransactionId.toString());
-			order.setProductType(ProductTypeEnum.SERVICE);
-			getnetPayment.setOrder(order);
-			CustomerCredit customer = new CustomerCredit();
-			customer.setCustomerId(kbAccountId.toString());
-			BillingAddress billing = new BillingAddress();
-			customer.setBillingAddress(billing);
-			getnetPayment.setCustomer(customer);
-			Credit creditTransaction = new Credit();
-			creditTransaction.setDelayed(false);
-			creditTransaction.setPreAuthorization(true);
-			creditTransaction.setSaveCardData(false);
-			creditTransaction.setTransactionType(TransactionTypeEnum.FULL);
-			creditTransaction.setNumberInstallments(BigDecimal.valueOf(1));
-			creditTransaction.setSoftDescriptor(("COB " + kbTransactionId.toString()).substring(0, 20));
-			CardCredit card = new CardCredit();
-			card.setNumberToken(cardRes.number_token);
-			card.setCardholderName(cardRes.cardholder_name);
-			card.setExpirationMonth(cardRes.expiration_month);
-			card.setExpirationYear(cardRes.expiration_year);
-			card.setBrand(cardRes.brand);
-			creditTransaction.setCard(card);
-			getnetPayment.setCredit(creditTransaction);
-
-			logger.info("authorizePayment, about to send payment request.");
-			String res = client.sendPaymentRequest(getnetPayment);
-			logger.info(res);
-			Gson gson = new Gson();
-			PaymentCreditResponse response = gson.fromJson(res, PaymentCreditResponse.class);
-			
-			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
-			outputProperties.add(new PluginProperty("paymentId", response.getPaymentId(), false));
-			outputProperties.add(new PluginProperty("sellerId", response.getSellerId(), false));
-			outputProperties.add(new PluginProperty("authorizationCode", response.getCredit().getAuthorizationCode(), false));
-			outputProperties.add(new PluginProperty("terminalNsu", response.getCredit().getTerminalNsu(), false));
-			outputProperties.add(new PluginProperty("acquirerTransactionId", response.getCredit().getAcquirerTransactionId(), false));
-			outputProperties.add(new PluginProperty("transactionId", response.getCredit().getTransactionId(), false));
-		
-			paymentTransactionInfoPlugin = new GetnetPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
-					TransactionType.AUTHORIZE, KillBillMoney.fromMinorUnits(response.getCurrency(), response.getAmount()), Currency.fromCode(response.getCurrency()), 
-					PaymentPluginStatus.PROCESSED, response.getStatus(), response.getCredit().getReasonCode(), String.valueOf(response.getPaymentId()),
-					null, new DateTime(), null, outputProperties);
-			
-		} catch (PaymentApiException e) {
-			// TODO Auto-generated catch block
-			logger.error("Failed to retrieve context. " + e.getMessage());
-			paymentTransactionInfoPlugin = new GetnetPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
-					TransactionType.AUTHORIZE, amount, currency, PaymentPluginStatus.ERROR, "Error", "100", null, null,
-					new DateTime(), null, null);
-		}
-
-		logger.info("Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
-		return paymentTransactionInfoPlugin;
+		return executePaymentTransaction(TransactionType.AUTHORIZE, kbAccountId, kbPaymentId, kbTransactionId,
+				kbPaymentMethodId, amount, currency, properties, context);
 	}
 
 	@Override
@@ -161,8 +97,77 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
 			UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		return executePaymentTransaction(TransactionType.PURCHASE, kbAccountId, kbPaymentId, kbTransactionId,
+				kbPaymentMethodId, amount, currency, properties, context);
+	}
+
+	private PaymentTransactionInfoPlugin executePaymentTransaction(final TransactionType transactionType,
+			final UUID kbAccountId, final UUID kbPaymentId, final UUID kbTransactionId, final UUID kbPaymentMethodId,
+			final BigDecimal amount, final Currency currency, final Iterable<PluginProperty> properties,
+			final CallContext context) throws PaymentPluginApiException {
+		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin;
+
+		try {
+			final PaymentMethod paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId,
+					false, true, properties, context);
+			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+
+			PaymentCredit getnetPayment = new PaymentCredit();
+			getnetPayment.setCurrency(currency.toString());
+			getnetPayment.setAmount(Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)));
+			Order order = new Order();
+			order.setOrderId(kbTransactionId.toString());
+			order.setProductType(ProductTypeEnum.SERVICE);
+			getnetPayment.setOrder(order);
+			CustomerCredit customer = new CustomerCredit();
+			customer.setCustomerId(kbAccountId.toString());
+			BillingAddress billing = new BillingAddress();
+			customer.setBillingAddress(billing);
+			getnetPayment.setCustomer(customer);
+			Credit creditTransaction = new Credit();
+			creditTransaction.setPreAuthorization(transactionType.equals(TransactionType.AUTHORIZE));
+			creditTransaction.setDelayed(false);
+			creditTransaction.setSaveCardData(false);
+			creditTransaction.setTransactionType(TransactionTypeEnum.FULL);
+			creditTransaction.setNumberInstallments(BigDecimal.valueOf(1));
+			creditTransaction.setSoftDescriptor(("COB " + kbTransactionId.toString()).substring(0, 20));
+			CardCredit card = new CardCredit();
+			card.setNumberToken(cardRes.number_token);
+			card.setCardholderName(cardRes.cardholder_name);
+			card.setExpirationMonth(cardRes.expiration_month);
+			card.setExpirationYear(cardRes.expiration_year);
+			card.setBrand(cardRes.brand);
+			creditTransaction.setCard(card);
+			getnetPayment.setCredit(creditTransaction);
+
+			String res = client.sendPaymentRequest(getnetPayment);
+			logger.debug("[GETNET] PAYMNET RESPONSE" + res);
+			Gson gson = new Gson();
+			PaymentCreditResponse response = gson.fromJson(res, PaymentCreditResponse.class);
+
+			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+			outputProperties.add(new PluginProperty("paymentId", response.getPaymentId(), false));
+			outputProperties.add(new PluginProperty("sellerId", response.getSellerId(), false));
+			outputProperties
+					.add(new PluginProperty("authorizationCode", response.getCredit().getAuthorizationCode(), false));
+			outputProperties.add(new PluginProperty("terminalNsu", response.getCredit().getTerminalNsu(), false));
+			outputProperties.add(new PluginProperty("acquirerTransactionId",
+					response.getCredit().getAcquirerTransactionId(), false));
+			outputProperties.add(new PluginProperty("transactionId", response.getCredit().getTransactionId(), false));
+
+			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+					transactionType, amount, currency, PaymentPluginStatus.PROCESSED, null, null,
+					response.getPaymentId(), response.getPaymentId(),
+					new DateTime(), new DateTime(), outputProperties);
+		} catch (PaymentApiException|PaymentPluginApiException e) {
+			logger.error("Failed to retrieve context. " + e.getMessage());
+			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+					TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.ERROR, "Error", "100", null, null,
+					new DateTime(), null, null);
+		}
+		
+		logger.info("Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
+		return paymentTransactionInfoPlugin;
 	}
 
 	@Override

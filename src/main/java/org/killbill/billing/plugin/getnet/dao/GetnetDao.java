@@ -34,8 +34,8 @@ import org.killbill.billing.payment.api.TransactionType;
 import org.killbill.billing.plugin.dao.payment.PluginPaymentDao;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentsRecord;
-import org.killbill.billing.plugin.getnet.model.PaymentCreditDelayedConfirmResponse;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditResponse;
+import org.killbill.billing.plugin.getnet.model.PaymentOperation;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
@@ -86,9 +86,9 @@ public class GetnetDao
 				}));
 	}
 
-	public GetnetPaymentsRecord addResponseCapture(final UUID kbAccountId, final UUID kbPaymentId,
+	public GetnetPaymentsRecord addResponseGeneric(final UUID kbAccountId, final UUID kbPaymentId,
 			final UUID kbPaymentTransactionId, final TransactionType transactionType, final BigDecimal amount,
-			final Currency currency, final PaymentCreditDelayedConfirmResponse getnetPayment, final UUID kbTenantId,
+			final Currency currency, final PaymentOperation getnetPayment, final UUID kbTenantId,
 			GetnetPaymentsRecord originalTransaction) throws SQLException {
 
 		return execute(dataSource.getConnection(),
@@ -107,9 +107,9 @@ public class GetnetDao
 									transactionType.toString(), amount, currency == null ? null : currency.name(),
 									getnetPayment.getPaymentId(), getnetPayment.getSellerId(),
 									getnetPayment.getOrderId(), getnetPayment.getStatus(),
-									toLocalDateTime(DateTime.parse(getnetPayment.getCreditConfirm().getConfirmDate())),
+									toLocalDateTime(DateTime.parse(getnetPayment.getDateField())),
 									originalTransaction.getAuthorizationCode(), originalTransaction.getAuthorizedAt(),
-									originalTransaction.getReasonCode(), getnetPayment.getCreditConfirm().getMessage(),
+									originalTransaction.getReasonCode(), getnetPayment.getMessageField(),
 									originalTransaction.getSoftDescriptor(), originalTransaction.getBrand(),
 									originalTransaction.getTerminalNsu(),
 									originalTransaction.getAcquirerTransactionId(),

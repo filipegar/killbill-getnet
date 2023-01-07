@@ -20,22 +20,27 @@ import org.joda.time.DateTime;
 
 import com.google.gson.annotations.SerializedName;
 
-public class PaymentCreditDelayedConfirmResponse extends PaymentResponseBase implements PaymentOperation {
+public class PaymentCreditVoidReponse extends PaymentResponseBase implements PaymentOperation {
 
-	@SerializedName("credit_confirm")
-	private PaymentCreditConfirmDetails creditConfirm = null;
+	@SerializedName("credit_cancel")
+	private PaymentCreditCancelDetails creditCancel = null;
 
-	/**
-	 * Get creditConfirm
-	 * 
-	 * @return creditConfirm
-	 **/
-	public PaymentCreditConfirmDetails getCreditConfirm() {
-		return creditConfirm;
+	public PaymentCreditVoidReponse creditCancel(PaymentCreditCancelDetails creditCancel) {
+		this.creditCancel = creditCancel;
+		return this;
 	}
 
-	public void setCreditConfirm(PaymentCreditConfirmDetails creditConfirm) {
-		this.creditConfirm = creditConfirm;
+	/**
+	 * Get creditCancel
+	 * 
+	 * @return creditCancel
+	 **/
+	public PaymentCreditCancelDetails getCreditCancel() {
+		return creditCancel;
+	}
+
+	public void setCreditCancel(PaymentCreditCancelDetails creditCancel) {
+		this.creditCancel = creditCancel;
 	}
 
 	@Override
@@ -46,25 +51,25 @@ public class PaymentCreditDelayedConfirmResponse extends PaymentResponseBase imp
 		if (o == null || getClass() != o.getClass()) {
 			return false;
 		}
-		PaymentCreditDelayedConfirmResponse creditDelayedConfirm = (PaymentCreditDelayedConfirmResponse) o;
-		return Objects.equals(this.paymentId, creditDelayedConfirm.paymentId)
-				&& Objects.equals(this.sellerId, creditDelayedConfirm.sellerId)
-				&& Objects.equals(this.amount, creditDelayedConfirm.amount)
-				&& Objects.equals(this.currency, creditDelayedConfirm.currency)
-				&& Objects.equals(this.orderId, creditDelayedConfirm.orderId)
-				&& Objects.equals(this.status, creditDelayedConfirm.status)
-				&& Objects.equals(this.creditConfirm, creditDelayedConfirm.creditConfirm);
+		PaymentCreditVoidReponse creditDelayedCancel = (PaymentCreditVoidReponse) o;
+		return Objects.equals(this.paymentId, creditDelayedCancel.paymentId)
+				&& Objects.equals(this.sellerId, creditDelayedCancel.sellerId)
+				&& Objects.equals(this.amount, creditDelayedCancel.amount)
+				&& Objects.equals(this.currency, creditDelayedCancel.currency)
+				&& Objects.equals(this.orderId, creditDelayedCancel.orderId)
+				&& Objects.equals(this.status, creditDelayedCancel.status)
+				&& Objects.equals(this.creditCancel, creditDelayedCancel.creditCancel);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(paymentId, sellerId, amount, currency, orderId, status, creditConfirm);
+		return Objects.hash(paymentId, sellerId, amount, currency, orderId, status, creditCancel);
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
-		sb.append("class CreditDelayedConfirm {\n");
+		sb.append("class CreditDelayedCancel {\n");
 
 		sb.append("    paymentId: ").append(toIndentedString(paymentId)).append("\n");
 		sb.append("    sellerId: ").append(toIndentedString(sellerId)).append("\n");
@@ -72,7 +77,7 @@ public class PaymentCreditDelayedConfirmResponse extends PaymentResponseBase imp
 		sb.append("    currency: ").append(toIndentedString(currency)).append("\n");
 		sb.append("    orderId: ").append(toIndentedString(orderId)).append("\n");
 		sb.append("    status: ").append(toIndentedString(status)).append("\n");
-		sb.append("    creditConfirm: ").append(toIndentedString(creditConfirm)).append("\n");
+		sb.append("    creditCancel: ").append(toIndentedString(creditCancel)).append("\n");
 		sb.append("}");
 		return sb.toString();
 	}
@@ -90,13 +95,14 @@ public class PaymentCreditDelayedConfirmResponse extends PaymentResponseBase imp
 
 	@Override
 	public String getDateField() {
-		return this.getCreditConfirm().getConfirmDate() != null && !this.getCreditConfirm().getConfirmDate().isEmpty()
-				? this.getCreditConfirm().getConfirmDate()
+		return this.getCreditCancel().getCanceledAt() != null && !this.getCreditCancel().getCanceledAt().isEmpty()
+				? this.getCreditCancel().getCanceledAt()
 				: new DateTime().toString();
 	}
 
 	@Override
 	public String getMessageField() {
-		return this.getCreditConfirm().getMessage();
+		return this.getCreditCancel().getMessage();
 	}
+
 }

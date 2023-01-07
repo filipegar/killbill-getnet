@@ -22,10 +22,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.joda.time.DateTime;
 import org.killbill.billing.catalog.api.Currency;
 import org.killbill.billing.osgi.libs.killbill.OSGIKillbillAPI;
+import org.killbill.billing.payment.api.Payment;
 import org.killbill.billing.payment.api.PaymentApiException;
 import org.killbill.billing.payment.api.PaymentMethod;
 import org.killbill.billing.payment.api.PaymentMethodPlugin;
@@ -51,6 +53,7 @@ import org.killbill.billing.plugin.getnet.model.Order.ProductTypeEnum;
 import org.killbill.billing.plugin.getnet.model.PaymentCredit;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditDelayedConfirmResponse;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditResponse;
+import org.killbill.billing.plugin.getnet.model.PaymentCreditVoidReponse;
 import org.killbill.billing.plugin.getnet.model.VaultCardResponse;
 import org.killbill.billing.plugin.util.KillBillMoney;
 import org.killbill.billing.util.callcontext.CallContext;
@@ -110,9 +113,9 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			PaymentCreditDelayedConfirmResponse response = gson.fromJson(res,
 					PaymentCreditDelayedConfirmResponse.class);
 
-			if (response.getStatus().equals("CONFIRMED")) {
+			if (response.getStatus().equalsIgnoreCase("CONFIRMED")) {
 				try {
-					record = getnetDao.addResponseCapture(kbAccountId, kbPaymentId, kbTransactionId,
+					record = getnetDao.addResponseGeneric(kbAccountId, kbPaymentId, kbTransactionId,
 							TransactionType.CAPTURE, amount, currency, response, context.getTenantId(), record);
 
 					return buildPaymentTransactionInfoPlugin(record);
@@ -142,16 +145,74 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public PaymentTransactionInfoPlugin voidPayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
 			UUID kbPaymentMethodId, Iterable<PluginProperty> properties, CallContext context)
 			throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		try {
+			Payment originalPayment = killbillAPI.getPaymentApi().getPayment(kbPaymentId, true, false, properties,
+					context);
+			long diffInMillies = Math.abs(clock.getUTCNow().getMillis() - originalPayment.getCreatedDate().getMillis());
+			long diff = TimeUnit.DAYS.convert(diffInMillies, TimeUnit.MILLISECONDS);
+
+			if (diff >= 1 && originalPayment.getCapturedAmount().compareTo(BigDecimal.ZERO) > 0) {
+				throw new PaymentPluginApiException("Failed.",
+						"Cannot void a captured transaction older than a day. Retry with Refund.");
+			} else if (diff >= 1 && diff < 7 && originalPayment.getCapturedAmount().compareTo(BigDecimal.ZERO) == 0) {
+				throw new PaymentPluginApiException("Failed.",
+						"Preauthorization expired as is older than 7 days. Check Getnet directly.");
+			}
+
+//		    return new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId, TransactionType.VOID,
+//		    		originalPayment.getAuthAmount(), originalPayment.getCurrency(), PaymentPluginStatus.ERROR, 
+//		    		"Not working yet.", "E100", null, null, clock.getUTCNow(), clock.getUTCNow(), new ArrayList<PluginProperty>());
+//		    
+			try {
+				GetnetPaymentsRecord record = null;
+				String getnetPaymentId = "";
+				List<GetnetPaymentsRecord> responses = getnetDao.getResponses(kbPaymentId, context.getTenantId());
+				for (int i = 0; i < responses.size(); i++) {
+					record = responses.get(i);
+					if (!record.getGetnetPaymentId().isEmpty()) {
+						getnetPaymentId = record.getGetnetPaymentId();
+						break;
+					}
+				}
+
+				if (getnetPaymentId.isEmpty() || record == null) {
+					throw new PaymentPluginApiException("Failed.", "Failed to find the original Getnet payment id.");
+				}
+
+				String res = client.voidTransactionRequest(getnetPaymentId);
+				logger.debug("[GETNET] VOID RESPONSE" + res);
+				Gson gson = new Gson();
+				PaymentCreditVoidReponse response = gson.fromJson(res, PaymentCreditVoidReponse.class);
+
+				getnetDao.addResponseGeneric(kbAccountId, kbPaymentId, kbTransactionId, TransactionType.VOID,
+						record.getAmount(), Currency.fromCode(record.getCurrency()), response, context.getTenantId(),
+						record);
+
+				if (response.getStatus().equalsIgnoreCase("CANCELED")) {
+					return new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId, TransactionType.VOID,
+							originalPayment.getAuthAmount(), originalPayment.getCurrency(),
+							PaymentPluginStatus.PROCESSED, response.getMessageField(), response.getStatus(),
+							response.getPaymentId(), response.getOrderId(), clock.getUTCNow(), clock.getUTCNow(),
+							new ArrayList<PluginProperty>());
+				}
+
+				return new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId, TransactionType.VOID,
+						originalPayment.getAuthAmount(), originalPayment.getCurrency(), PaymentPluginStatus.ERROR,
+						response.getMessageField(), response.getStatus(), response.getPaymentId(),
+						response.getOrderId(), clock.getUTCNow(), clock.getUTCNow(), new ArrayList<PluginProperty>());
+			} catch (SQLException e) {
+				throw new PaymentPluginApiException("#voidPayment, SQL Exception", e);
+			}
+		} catch (PaymentApiException e) {
+			throw new PaymentPluginApiException("Failed.", "#voidPayment, Failed to retrieve related transaction.");
+		}
 	}
 
 	@Override
 	public PaymentTransactionInfoPlugin creditPayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
 			UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		throw new PaymentPluginApiException("INTERNAL", "#creditPayment not supported.");
 	}
 
 	@Override
@@ -246,7 +307,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public GatewayNotification processNotification(String notification, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		throw new PaymentPluginApiException("INTERNAL", "#processNotification not yet implemented, please contact support@killbill.io");
+		throw new PaymentPluginApiException("INTERNAL",
+				"#processNotification not yet implemented, please contact support@killbill.io");
 	}
 
 	private PaymentTransactionInfoPlugin buildPaymentTransactionInfoPlugin(GetnetPaymentsRecord record) {

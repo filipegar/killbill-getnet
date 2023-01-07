@@ -49,6 +49,7 @@ import org.killbill.billing.plugin.getnet.model.CustomerCredit;
 import org.killbill.billing.plugin.getnet.model.Order;
 import org.killbill.billing.plugin.getnet.model.Order.ProductTypeEnum;
 import org.killbill.billing.plugin.getnet.model.PaymentCredit;
+import org.killbill.billing.plugin.getnet.model.PaymentCreditDelayedConfirmResponse;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditResponse;
 import org.killbill.billing.plugin.getnet.model.VaultCardResponse;
 import org.killbill.billing.plugin.util.KillBillMoney;
@@ -65,6 +66,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 
 	private static final Logger logger = LoggerFactory.getLogger(GetnetPaymentPluginApi.class);
 	private OSGIKillbillAPI killbillAPI;
+	@SuppressWarnings("unused")
 	private Clock clock;
 	private GetnetHttpClient client;
 	private GetnetDao getnetDao;
@@ -95,8 +97,37 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public PaymentTransactionInfoPlugin capturePayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
 			UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin = null;
+
+		try {
+			GetnetPaymentsRecord record = getnetDao.getSuccessfulAuthorizationResponse(kbPaymentId,
+					context.getTenantId());
+
+			String res = client.captureTransactionRequest(record.getGetnetPaymentId(),
+					Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)));
+			logger.debug("[GETNET] PAYMNET RESPONSE" + res);
+			Gson gson = new Gson();
+			PaymentCreditDelayedConfirmResponse response = gson.fromJson(res,
+					PaymentCreditDelayedConfirmResponse.class);
+
+			if (response.getStatus().equals("CONFIRMED")) {
+				try {
+					record = getnetDao.addResponseCapture(kbAccountId, kbPaymentId, kbTransactionId,
+							TransactionType.CAPTURE, amount, currency, response, context.getTenantId(), record);
+
+					return buildPaymentTransactionInfoPlugin(record);
+				} catch (SQLException e) {
+					logger.error("Getnet DAO failed to save data. " + e.getMessage());
+				}
+			} else {
+				throw new PaymentPluginApiException("Transaction could not be captured on Getnet.",
+						response.getCreditConfirm().getMessage());
+			}
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("Failed to retrieve last transaction to capture.", e);
+		}
+
+		return paymentTransactionInfoPlugin;
 	}
 
 	@Override
@@ -105,81 +136,6 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			CallContext context) throws PaymentPluginApiException {
 		return executePaymentTransaction(TransactionType.PURCHASE, kbAccountId, kbPaymentId, kbTransactionId,
 				kbPaymentMethodId, amount, currency, properties, context);
-	}
-
-	private PaymentTransactionInfoPlugin executePaymentTransaction(final TransactionType transactionType,
-			final UUID kbAccountId, final UUID kbPaymentId, final UUID kbTransactionId, final UUID kbPaymentMethodId,
-			final BigDecimal amount, final Currency currency, final Iterable<PluginProperty> properties,
-			final CallContext context) throws PaymentPluginApiException {
-		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin;
-
-		try {
-			final PaymentMethod paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId,
-					false, true, properties, context);
-			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
-
-			PaymentCredit getnetPayment = new PaymentCredit();
-			getnetPayment.setCurrency(currency.toString());
-			getnetPayment.setAmount(Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)));
-			Order order = new Order();
-			order.setOrderId(kbTransactionId.toString());
-			order.setProductType(ProductTypeEnum.SERVICE);
-			getnetPayment.setOrder(order);
-			CustomerCredit customer = new CustomerCredit();
-			customer.setCustomerId(kbAccountId.toString());
-			BillingAddress billing = new BillingAddress();
-			customer.setBillingAddress(billing);
-			getnetPayment.setCustomer(customer);
-			Credit creditTransaction = new Credit();
-			creditTransaction.setPreAuthorization(transactionType.equals(TransactionType.AUTHORIZE));
-			creditTransaction.setDelayed(false);
-			creditTransaction.setSaveCardData(false);
-			creditTransaction.setTransactionType(TransactionTypeEnum.FULL);
-			creditTransaction.setNumberInstallments(BigDecimal.valueOf(1));
-			creditTransaction.setSoftDescriptor(("COB " + kbTransactionId.toString()).substring(0, 20));
-			CardCredit card = new CardCredit();
-			card.setNumberToken(cardRes.number_token);
-			card.setCardholderName(cardRes.cardholder_name);
-			card.setExpirationMonth(cardRes.expiration_month);
-			card.setExpirationYear(cardRes.expiration_year);
-			card.setBrand(cardRes.brand);
-			creditTransaction.setCard(card);
-			getnetPayment.setCredit(creditTransaction);
-
-			String res = client.sendPaymentRequest(getnetPayment);
-			logger.debug("[GETNET] PAYMNET RESPONSE" + res);
-			Gson gson = new Gson();
-			PaymentCreditResponse response = gson.fromJson(res, PaymentCreditResponse.class);
-
-			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
-//			outputProperties.add(new PluginProperty("paymentId", response.getPaymentId(), false));
-//			outputProperties.add(new PluginProperty("sellerId", response.getSellerId(), false));
-//			outputProperties
-//					.add(new PluginProperty("authorizationCode", response.getCredit().getAuthorizationCode(), false));
-//			outputProperties.add(new PluginProperty("terminalNsu", response.getCredit().getTerminalNsu(), false));
-//			outputProperties.add(new PluginProperty("acquirerTransactionId",
-//					response.getCredit().getAcquirerTransactionId(), false));
-//			outputProperties.add(new PluginProperty("transactionId", response.getCredit().getTransactionId(), false));
-
-			try {
-				getnetDao.addResponse(kbAccountId, kbPaymentId, kbTransactionId, transactionType, amount, currency,
-						response, context.getTenantId());
-			} catch (SQLException e) {
-				logger.error("Getnet DAO failed to save data. " + e.getMessage());
-			}
-
-			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
-					transactionType, amount, currency, PaymentPluginStatus.PROCESSED, null, null,
-					response.getPaymentId(), response.getPaymentId(), new DateTime(), new DateTime(), outputProperties);
-		} catch (PaymentApiException | PaymentPluginApiException e) {
-			logger.error("Failed to retrieve context. " + e.getMessage());
-			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
-					TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.ERROR, "Error", "100", null, null,
-					new DateTime(), null, null);
-		}
-
-		logger.info("Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
-		return paymentTransactionInfoPlugin;
 	}
 
 	@Override
@@ -209,24 +165,15 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public List<PaymentTransactionInfoPlugin> getPaymentInfo(UUID kbAccountId, UUID kbPaymentId,
 			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
-		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin;
 		List<PaymentTransactionInfoPlugin> returnList = new ArrayList<PaymentTransactionInfoPlugin>();
 
 		try {
 			GetnetPaymentsRecord record = getnetDao.getSuccessfulAuthorizationResponse(kbPaymentId,
 					context.getTenantId());
-			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
 
-			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId,
-					UUID.fromString(record.getKbPaymentTransactionId()),
-					TransactionType.valueOf(record.getTransactionType()), record.getAmount(),
-					Currency.fromCode(record.getCurrency()),
-					record.getReasonCode().equals("00") ? PaymentPluginStatus.PROCESSED : PaymentPluginStatus.ERROR,
-					record.getReasonCode(), record.getReasonMessage(), record.getGetnetPaymentId(),
-					record.getTerminalNsu(), DateTime.parse(record.getCreatedDate().toString()),
-					DateTime.parse(record.getAuthorizedAt().toString()), outputProperties);
-
-			returnList.add(paymentTransactionInfoPlugin);
+			if (record != null) {
+				returnList.add(buildPaymentTransactionInfoPlugin(record));
+			}
 		} catch (SQLException e) {
 			logger.error("GetnetDAO failed to retrieve more information on payment. " + e.getMessage());
 		}
@@ -293,15 +240,98 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public HostedPaymentPageFormDescriptor buildFormDescriptor(UUID kbAccountId, Iterable<PluginProperty> customFields,
 			Iterable<PluginProperty> properties, CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		throw new PaymentPluginApiException("INTERNAL", "#buildFormDescriptor not supported.");
 	}
 
 	@Override
 	public GatewayNotification processNotification(String notification, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		throw new PaymentPluginApiException("INTERNAL", "#processNotification not yet implemented, please contact support@killbill.io");
+	}
+
+	private PaymentTransactionInfoPlugin buildPaymentTransactionInfoPlugin(GetnetPaymentsRecord record) {
+		List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+
+		outputProperties.add(new PluginProperty("paymentId", record.getGetnetPaymentId(), false));
+		outputProperties.add(new PluginProperty("sellerId", record.getSellerId(), false));
+		outputProperties.add(new PluginProperty("authorizationCode", record.getAuthorizationCode(), false));
+		outputProperties.add(new PluginProperty("terminalNsu", record.getTerminalNsu(), false));
+		outputProperties.add(new PluginProperty("acquirerTransactionId", record.getAcquirerTransactionId(), false));
+		outputProperties.add(new PluginProperty("transactionId", record.getTransactionId(), false));
+
+		return new PluginPaymentTransactionInfoPlugin(UUID.fromString(record.getKbPaymentId()),
+				UUID.fromString(record.getKbPaymentTransactionId()),
+				TransactionType.valueOf(record.getTransactionType()), record.getAmount(),
+				Currency.fromCode(record.getCurrency()),
+				record.getReasonCode().equals("00") ? PaymentPluginStatus.PROCESSED : PaymentPluginStatus.ERROR,
+				record.getReasonMessage(), record.getReasonCode(), record.getGetnetPaymentId(), record.getTerminalNsu(),
+				DateTime.parse(record.getCreatedDate().toString()), DateTime.parse(record.getAuthorizedAt().toString()),
+				outputProperties);
+	}
+
+	private PaymentTransactionInfoPlugin executePaymentTransaction(final TransactionType transactionType,
+			final UUID kbAccountId, final UUID kbPaymentId, final UUID kbTransactionId, final UUID kbPaymentMethodId,
+			final BigDecimal amount, final Currency currency, final Iterable<PluginProperty> properties,
+			final CallContext context) throws PaymentPluginApiException {
+		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin = null;
+
+		try {
+			final PaymentMethod paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId,
+					false, true, properties, context);
+			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+
+			PaymentCredit getnetPayment = new PaymentCredit();
+			getnetPayment.setCurrency(currency.toString());
+			getnetPayment.setAmount(Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)));
+			Order order = new Order();
+			order.setOrderId(kbTransactionId.toString());
+			order.setProductType(ProductTypeEnum.SERVICE);
+			getnetPayment.setOrder(order);
+			CustomerCredit customer = new CustomerCredit();
+			customer.setCustomerId(kbAccountId.toString());
+			BillingAddress billing = new BillingAddress();
+			customer.setBillingAddress(billing);
+			getnetPayment.setCustomer(customer);
+			Credit creditTransaction = new Credit();
+			creditTransaction.setPreAuthorization(transactionType.equals(TransactionType.AUTHORIZE));
+			creditTransaction.setDelayed(false);
+			creditTransaction.setSaveCardData(false);
+			creditTransaction.setTransactionType(TransactionTypeEnum.FULL);
+			creditTransaction.setNumberInstallments(BigDecimal.valueOf(1));
+			creditTransaction.setSoftDescriptor(("COB " + kbTransactionId.toString()).substring(0, 20));
+			CardCredit card = new CardCredit();
+			card.setNumberToken(cardRes.number_token);
+			card.setCardholderName(cardRes.cardholder_name);
+			card.setExpirationMonth(cardRes.expiration_month);
+			card.setExpirationYear(cardRes.expiration_year);
+			card.setBrand(cardRes.brand);
+			creditTransaction.setCard(card);
+			getnetPayment.setCredit(creditTransaction);
+
+			String res = client.sendPaymentRequest(getnetPayment);
+			logger.debug("[GETNET] PAYMNET RESPONSE" + res);
+			Gson gson = new Gson();
+			PaymentCreditResponse response = gson.fromJson(res, PaymentCreditResponse.class);
+
+			try {
+				GetnetPaymentsRecord record = getnetDao.addResponse(kbAccountId, kbPaymentId, kbTransactionId,
+						transactionType, amount, currency, response, context.getTenantId());
+
+				return buildPaymentTransactionInfoPlugin(record);
+			} catch (SQLException e) {
+				logger.error("Getnet DAO failed to save data. " + e.getMessage());
+			}
+		} catch (PaymentApiException | PaymentPluginApiException e) {
+			logger.error("Failed to retrieve context. " + e.getMessage());
+			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+					TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.ERROR, "Error", "100", null, null,
+					new DateTime(), null, null);
+
+			logger.info("Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
+			return paymentTransactionInfoPlugin;
+		}
+
+		return paymentTransactionInfoPlugin;
 	}
 
 }

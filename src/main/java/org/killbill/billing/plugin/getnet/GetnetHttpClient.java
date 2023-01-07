@@ -130,6 +130,23 @@ public class GetnetHttpClient extends HttpClient {
 		}
 	}
 
+	public String captureTransactionRequest(String paymentId, Integer amount) throws PaymentPluginApiException {
+		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
+				this.getAccessToken());
+		Map<String, String> query = ImmutableMap.of();
+
+		JsonObject request = new JsonObject();
+		request.addProperty("amount", amount);
+
+		try {
+			return doCall(POST, url + "/v1/payments/credit/" + paymentId + "/confirm", request.toString(), query,
+					headers, String.class, ResponseFormat.TEXT);
+		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
+				| InvalidRequest e) {
+			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+		}
+	}
+
 	public String getAccessToken() {
 		if (accessToken.isEmpty()) {
 			doLogin();

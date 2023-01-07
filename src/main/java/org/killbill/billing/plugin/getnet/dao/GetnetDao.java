@@ -24,7 +24,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.UUID;
 
-import javax.annotation.Nullable;
 import javax.sql.DataSource;
 
 import org.joda.time.DateTime;
@@ -35,6 +34,7 @@ import org.killbill.billing.payment.api.TransactionType;
 import org.killbill.billing.plugin.dao.payment.PluginPaymentDao;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentsRecord;
+import org.killbill.billing.plugin.getnet.model.PaymentCreditDelayedConfirmResponse;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditResponse;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -51,7 +51,7 @@ public class GetnetDao
 	// Responses
 	public GetnetPaymentsRecord addResponse(final UUID kbAccountId, final UUID kbPaymentId,
 			final UUID kbPaymentTransactionId, final TransactionType transactionType, final BigDecimal amount,
-			final Currency currency, @Nullable final PaymentCreditResponse getnetPayment, final UUID kbTenantId)
+			final Currency currency, final PaymentCreditResponse getnetPayment, final UUID kbTenantId)
 			throws SQLException {
 
 		return execute(dataSource.getConnection(),
@@ -79,6 +79,41 @@ public class GetnetDao
 									getnetPayment.getCredit().getTerminalNsu(),
 									getnetPayment.getCredit().getAcquirerTransactionId(),
 									getnetPayment.getCredit().getTransactionId(), toLocalDateTime(new DateTime()),
+									kbTenantId.toString())
+							.execute();
+					return dslContext.fetchOne(GETNET_PAYMENTS, GETNET_PAYMENTS.RECORD_ID
+							.eq(GETNET_PAYMENTS.RECORD_ID.getDataType().convert(dslContext.lastID())));
+				}));
+	}
+
+	public GetnetPaymentsRecord addResponseCapture(final UUID kbAccountId, final UUID kbPaymentId,
+			final UUID kbPaymentTransactionId, final TransactionType transactionType, final BigDecimal amount,
+			final Currency currency, final PaymentCreditDelayedConfirmResponse getnetPayment, final UUID kbTenantId,
+			GetnetPaymentsRecord originalTransaction) throws SQLException {
+
+		return execute(dataSource.getConnection(),
+				conn -> DSL.using(conn, dialect, settings).transactionResult(configuration -> {
+					final DSLContext dslContext = DSL.using(configuration);
+					dslContext.insertInto(GETNET_PAYMENTS, GETNET_PAYMENTS.KB_ACCOUNT_ID, GETNET_PAYMENTS.KB_PAYMENT_ID,
+							GETNET_PAYMENTS.KB_PAYMENT_TRANSACTION_ID, GETNET_PAYMENTS.TRANSACTION_TYPE,
+							GETNET_PAYMENTS.AMOUNT, GETNET_PAYMENTS.CURRENCY, GETNET_PAYMENTS.GETNET_PAYMENT_ID,
+							GETNET_PAYMENTS.SELLER_ID, GETNET_PAYMENTS.ORDER_ID, GETNET_PAYMENTS.GETNET_STATUS,
+							GETNET_PAYMENTS.RECEIVED_AT, GETNET_PAYMENTS.AUTHORIZATION_CODE,
+							GETNET_PAYMENTS.AUTHORIZED_AT, GETNET_PAYMENTS.REASON_CODE, GETNET_PAYMENTS.REASON_MESSAGE,
+							GETNET_PAYMENTS.SOFT_DESCRIPTOR, GETNET_PAYMENTS.BRAND, GETNET_PAYMENTS.TERMINAL_NSU,
+							GETNET_PAYMENTS.ACQUIRER_TRANSACTION_ID, GETNET_PAYMENTS.TRANSACTION_ID,
+							GETNET_PAYMENTS.CREATED_DATE, GETNET_PAYMENTS.KB_TENANT_ID)
+							.values(kbAccountId.toString(), kbPaymentId.toString(), kbPaymentTransactionId.toString(),
+									transactionType.toString(), amount, currency == null ? null : currency.name(),
+									getnetPayment.getPaymentId(), getnetPayment.getSellerId(),
+									getnetPayment.getOrderId(), getnetPayment.getStatus(),
+									toLocalDateTime(DateTime.parse(getnetPayment.getCreditConfirm().getConfirmDate())),
+									originalTransaction.getAuthorizationCode(), originalTransaction.getAuthorizedAt(),
+									originalTransaction.getReasonCode(), getnetPayment.getCreditConfirm().getMessage(),
+									originalTransaction.getSoftDescriptor(), originalTransaction.getBrand(),
+									originalTransaction.getTerminalNsu(),
+									originalTransaction.getAcquirerTransactionId(),
+									originalTransaction.getTransactionId(), toLocalDateTime(new DateTime()),
 									kbTenantId.toString())
 							.execute();
 					return dslContext.fetchOne(GETNET_PAYMENTS, GETNET_PAYMENTS.RECORD_ID

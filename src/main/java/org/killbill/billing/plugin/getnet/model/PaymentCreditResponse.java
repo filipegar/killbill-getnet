@@ -24,24 +24,7 @@ import com.google.gson.annotations.SerializedName;
 /**
  * Conjunto de dados da resposta do pagamento de crédito.
  */
-public class PaymentCreditResponse {
-	@SerializedName("payment_id")
-	public String paymentId = null;
-
-	@SerializedName("seller_id")
-	public String sellerId = null;
-
-	@SerializedName("amount")
-	public Integer amount = null;
-
-	@SerializedName("currency")
-	public String currency = null;
-
-	@SerializedName("order_id")
-	public String orderId = null;
-
-	@SerializedName("status")
-	public String status = null;
+public class PaymentCreditResponse extends PaymentResponseBase {
 
 	@SerializedName("received_at")
 	public String receivedAt = null;
@@ -52,114 +35,6 @@ public class PaymentCreditResponse {
 	public PaymentCreditResponse paymentId(String paymentId) {
 		this.paymentId = paymentId;
 		return this;
-	}
-
-	/**
-	 * Código de identificação do pagamento.
-	 * 
-	 * @return paymentId
-	 **/
-	public String getPaymentId() {
-		return paymentId;
-	}
-
-	public void setPaymentId(String paymentId) {
-		this.paymentId = paymentId;
-	}
-
-	public PaymentCreditResponse sellerId(String sellerId) {
-		this.sellerId = sellerId;
-		return this;
-	}
-
-	/**
-	 * Código de identificação do e-commerce.
-	 * 
-	 * @return sellerId
-	 **/
-	public String getSellerId() {
-		return sellerId;
-	}
-
-	public void setSellerId(String sellerId) {
-		this.sellerId = sellerId;
-	}
-
-	public PaymentCreditResponse amount(Integer amount) {
-		this.amount = amount;
-		return this;
-	}
-
-	/**
-	 * Valor da compra em centavos.
-	 * 
-	 * @return amount
-	 **/
-	public Integer getAmount() {
-		return amount;
-	}
-
-	public void setAmount(Integer amount) {
-		this.amount = amount;
-	}
-
-	public PaymentCreditResponse currency(String currency) {
-		this.currency = currency;
-		return this;
-	}
-
-	/**
-	 * Identificação da moeda (Consultar código em
-	 * \&quot;https://www.currency-iso.org/en/home/tables/table-a1.html\&quot;).
-	 * 
-	 * @return currency
-	 **/
-	public String getCurrency() {
-		return currency;
-	}
-
-	public void setCurrency(String currency) {
-		this.currency = currency;
-	}
-
-	public PaymentCreditResponse orderId(String orderId) {
-		this.orderId = orderId;
-		return this;
-	}
-
-	/**
-	 * Código de identificação da compra utilizado pelo e-commerce
-	 * 
-	 * @return orderId
-	 **/
-	public String getOrderId() {
-		return orderId;
-	}
-
-	public void setOrderId(String orderId) {
-		this.orderId = orderId;
-	}
-
-	public PaymentCreditResponse status(String status) {
-		this.status = status;
-		return this;
-	}
-
-	/**
-	 * Status da transação. Para mais informações sobre os status de retorno, veja
-	 * em &lt;a href&#x3D;\&quot;api#tag/Notificacoes-1.0\&quot;&gt;Notificações
-	 * 1.0&lt;/a&gt; ou &lt;a
-	 * href&#x3D;\&quot;api#tag/Notificacoes-1.1\&quot;&gt;Notificações
-	 * 1.1&lt;/a&gt;
-	 * 
-	 * @return status
-	 **/
-	public String getStatus() {
-		return status;
-	}
-
-	public void setStatus(String status) {
-		this.status = status;
 	}
 
 	public PaymentCreditResponse receivedAt(String receivedAt) {

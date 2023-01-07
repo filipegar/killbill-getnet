@@ -20,6 +20,7 @@ import java.util.Hashtable;
 import org.killbill.billing.osgi.api.OSGIPluginProperties;
 import org.killbill.billing.osgi.libs.killbill.KillbillActivatorBase;
 import org.killbill.billing.payment.plugin.api.PaymentPluginApi;
+import org.killbill.billing.plugin.getnet.dao.GetnetDao;
 import org.osgi.framework.BundleContext;
 
 public class GetnetActivator extends KillbillActivatorBase {
@@ -33,8 +34,10 @@ public class GetnetActivator extends KillbillActivatorBase {
 	public void start(final BundleContext context) throws Exception {
 		super.start(context);
 
+		final GetnetDao getnetDao = new GetnetDao(dataSource.getDataSource());
+
 		final GetnetPaymentPluginApi pluginApi = new GetnetPaymentPluginApi(killbillAPI, clock.getClock(),
-				configProperties.getProperties());
+				configProperties.getProperties(), getnetDao);
 		registerPaymentPluginApi(context, pluginApi);
 	}
 

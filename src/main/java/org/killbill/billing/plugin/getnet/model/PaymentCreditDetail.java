@@ -14,7 +14,6 @@
  */
 package org.killbill.billing.plugin.getnet.model;
 
-import java.math.BigDecimal;
 import java.util.Objects;
 
 import com.google.gson.annotations.SerializedName;
@@ -30,7 +29,7 @@ public class PaymentCreditDetail {
 	public String authorizationCode = null;
 
 	@SerializedName("authorized_at")
-	public BigDecimal authorizedAt = null;
+	public String authorizedAt = null;
 
 	@SerializedName("reason_code")
 	public String reasonCode = null;
@@ -101,7 +100,7 @@ public class PaymentCreditDetail {
 		this.authorizationCode = authorizationCode;
 	}
 
-	public PaymentCreditDetail authorizedAt(BigDecimal authorizedAt) {
+	public PaymentCreditDetail authorizedAt(String authorizedAt) {
 		this.authorizedAt = authorizedAt;
 		return this;
 	}
@@ -111,11 +110,11 @@ public class PaymentCreditDetail {
 	 * 
 	 * @return authorizedAt
 	 **/
-	public BigDecimal getAuthorizedAt() {
+	public String getAuthorizedAt() {
 		return authorizedAt;
 	}
 
-	public void setAuthorizedAt(BigDecimal authorizedAt) {
+	public void setAuthorizedAt(String authorizedAt) {
 		this.authorizedAt = authorizedAt;
 	}
 

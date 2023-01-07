@@ -124,9 +124,10 @@ public class GetnetHttpClient extends HttpClient {
 		try {
 			return doCall(POST, url + "/v1/payments/credit", payment.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
-		} catch (InterruptedException|ExecutionException|TimeoutException|IOException|URISyntaxException|InvalidRequest e) {
+		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
+				| InvalidRequest e) {
 			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
-		}	
+		}
 	}
 
 	public String getAccessToken() {

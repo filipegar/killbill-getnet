@@ -17,6 +17,7 @@ package org.killbill.billing.plugin.getnet;
 
 import java.math.BigDecimal;
 import java.security.GeneralSecurityException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -38,6 +39,8 @@ import org.killbill.billing.payment.plugin.api.PaymentPluginApiException;
 import org.killbill.billing.payment.plugin.api.PaymentPluginStatus;
 import org.killbill.billing.payment.plugin.api.PaymentTransactionInfoPlugin;
 import org.killbill.billing.plugin.api.payment.PluginPaymentTransactionInfoPlugin;
+import org.killbill.billing.plugin.getnet.dao.GetnetDao;
+import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentsRecord;
 import org.killbill.billing.plugin.getnet.model.BillingAddress;
 import org.killbill.billing.plugin.getnet.model.CardCredit;
 import org.killbill.billing.plugin.getnet.model.Credit;
@@ -64,10 +67,13 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	private OSGIKillbillAPI killbillAPI;
 	private Clock clock;
 	private GetnetHttpClient client;
+	private GetnetDao getnetDao;
 
-	public GetnetPaymentPluginApi(final OSGIKillbillAPI killbillAPI, final Clock clock, Properties configProperties) {
+	public GetnetPaymentPluginApi(final OSGIKillbillAPI killbillAPI, final Clock clock, Properties configProperties,
+			GetnetDao getnetDao) {
 		this.killbillAPI = killbillAPI;
 		this.clock = clock;
+		this.getnetDao = getnetDao;
 
 		try {
 			this.client = new GetnetHttpClient(configProperties);
@@ -146,26 +152,32 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			PaymentCreditResponse response = gson.fromJson(res, PaymentCreditResponse.class);
 
 			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
-			outputProperties.add(new PluginProperty("paymentId", response.getPaymentId(), false));
-			outputProperties.add(new PluginProperty("sellerId", response.getSellerId(), false));
-			outputProperties
-					.add(new PluginProperty("authorizationCode", response.getCredit().getAuthorizationCode(), false));
-			outputProperties.add(new PluginProperty("terminalNsu", response.getCredit().getTerminalNsu(), false));
-			outputProperties.add(new PluginProperty("acquirerTransactionId",
-					response.getCredit().getAcquirerTransactionId(), false));
-			outputProperties.add(new PluginProperty("transactionId", response.getCredit().getTransactionId(), false));
+//			outputProperties.add(new PluginProperty("paymentId", response.getPaymentId(), false));
+//			outputProperties.add(new PluginProperty("sellerId", response.getSellerId(), false));
+//			outputProperties
+//					.add(new PluginProperty("authorizationCode", response.getCredit().getAuthorizationCode(), false));
+//			outputProperties.add(new PluginProperty("terminalNsu", response.getCredit().getTerminalNsu(), false));
+//			outputProperties.add(new PluginProperty("acquirerTransactionId",
+//					response.getCredit().getAcquirerTransactionId(), false));
+//			outputProperties.add(new PluginProperty("transactionId", response.getCredit().getTransactionId(), false));
+
+			try {
+				getnetDao.addResponse(kbAccountId, kbPaymentId, kbTransactionId, transactionType, amount, currency,
+						response, context.getTenantId());
+			} catch (SQLException e) {
+				logger.error("Getnet DAO failed to save data. " + e.getMessage());
+			}
 
 			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
 					transactionType, amount, currency, PaymentPluginStatus.PROCESSED, null, null,
-					response.getPaymentId(), response.getPaymentId(),
-					new DateTime(), new DateTime(), outputProperties);
-		} catch (PaymentApiException|PaymentPluginApiException e) {
+					response.getPaymentId(), response.getPaymentId(), new DateTime(), new DateTime(), outputProperties);
+		} catch (PaymentApiException | PaymentPluginApiException e) {
 			logger.error("Failed to retrieve context. " + e.getMessage());
 			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
 					TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.ERROR, "Error", "100", null, null,
 					new DateTime(), null, null);
 		}
-		
+
 		logger.info("Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
 		return paymentTransactionInfoPlugin;
 	}
@@ -197,8 +209,28 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public List<PaymentTransactionInfoPlugin> getPaymentInfo(UUID kbAccountId, UUID kbPaymentId,
 			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin;
+		List<PaymentTransactionInfoPlugin> returnList = new ArrayList<PaymentTransactionInfoPlugin>();
+
+		try {
+			GetnetPaymentsRecord record = getnetDao.getSuccessfulAuthorizationResponse(kbPaymentId,
+					context.getTenantId());
+			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+
+			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId,
+					UUID.fromString(record.getKbPaymentTransactionId()),
+					TransactionType.valueOf(record.getTransactionType()), record.getAmount(),
+					Currency.fromCode(record.getCurrency()),
+					record.getReasonCode().equals("00") ? PaymentPluginStatus.PROCESSED : PaymentPluginStatus.ERROR,
+					record.getReasonCode(), record.getReasonMessage(), record.getGetnetPaymentId(),
+					record.getTerminalNsu(), DateTime.parse(record.getCreatedDate().toString()),
+					DateTime.parse(record.getAuthorizedAt().toString()), outputProperties);
+
+			returnList.add(paymentTransactionInfoPlugin);
+		} catch (SQLException e) {
+			logger.error("GetnetDAO failed to retrieve more information on payment. " + e.getMessage());
+		}
+		return returnList;
 	}
 
 	@Override

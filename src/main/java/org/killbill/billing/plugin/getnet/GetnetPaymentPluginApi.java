@@ -25,6 +25,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.joda.time.DateTime;
+import org.killbill.billing.account.api.Account;
+import org.killbill.billing.account.api.AccountApiException;
 import org.killbill.billing.catalog.api.Currency;
 import org.killbill.billing.osgi.libs.killbill.OSGIKillbillAPI;
 import org.killbill.billing.payment.api.Payment;
@@ -40,6 +42,8 @@ import org.killbill.billing.payment.plugin.api.PaymentPluginApi;
 import org.killbill.billing.payment.plugin.api.PaymentPluginApiException;
 import org.killbill.billing.payment.plugin.api.PaymentPluginStatus;
 import org.killbill.billing.payment.plugin.api.PaymentTransactionInfoPlugin;
+import org.killbill.billing.plugin.api.payment.PluginPaymentMethodInfoPlugin;
+import org.killbill.billing.plugin.api.payment.PluginPaymentMethodPlugin;
 import org.killbill.billing.plugin.api.payment.PluginPaymentTransactionInfoPlugin;
 import org.killbill.billing.plugin.getnet.dao.GetnetDao;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentsRecord;
@@ -64,12 +68,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 public class GetnetPaymentPluginApi implements PaymentPluginApi {
 
 	private static final Logger logger = LoggerFactory.getLogger(GetnetPaymentPluginApi.class);
 	private OSGIKillbillAPI killbillAPI;
-	@SuppressWarnings("unused")
 	private Clock clock;
 	private GetnetHttpClient client;
 	private GetnetDao getnetDao;
@@ -159,10 +164,6 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 						"Preauthorization expired as is older than 7 days. Check Getnet directly.");
 			}
 
-//		    return new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId, TransactionType.VOID,
-//		    		originalPayment.getAuthAmount(), originalPayment.getCurrency(), PaymentPluginStatus.ERROR, 
-//		    		"Not working yet.", "E100", null, null, clock.getUTCNow(), clock.getUTCNow(), new ArrayList<PluginProperty>());
-//		    
 			try {
 				GetnetPaymentsRecord record = null;
 				String getnetPaymentId = "";
@@ -242,13 +243,6 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	}
 
 	@Override
-	public Pagination<PaymentTransactionInfoPlugin> searchPayments(String searchKey, Long offset, Long limit,
-			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
 	public void addPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMethodPlugin paymentMethodProps,
 			boolean setDefault, Iterable<PluginProperty> properties, CallContext context)
 			throws PaymentPluginApiException {
@@ -266,42 +260,104 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public PaymentMethodPlugin getPaymentMethodDetail(UUID kbAccountId, UUID kbPaymentMethodId,
 			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
-	}
+		PaymentMethod paymentMethod = null;
+		List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+		try {
+			paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId, false, false,
+					properties, context);
+			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
 
-	@Override
-	public void setDefaultPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, Iterable<PluginProperty> properties,
-			CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
+			outputProperties.add(new PluginProperty("getnetCardId", cardRes.card_id, false));
+			outputProperties.add(new PluginProperty("brand", cardRes.brand, false));
+			outputProperties.add(new PluginProperty("lastFourDigits", cardRes.last_four_digits, false));
+			outputProperties.add(new PluginProperty("expirationMonth", cardRes.expiration_month, false));
+			outputProperties.add(new PluginProperty("expirationYear", cardRes.expiration_year, false));
+			outputProperties.add(new PluginProperty("customerId", cardRes.customer_id, false));
+			outputProperties.add(new PluginProperty("cardholderName", cardRes.cardholder_name, false));
+			outputProperties.add(new PluginProperty("usedAt", cardRes.used_at, false));
+			outputProperties.add(new PluginProperty("status", cardRes.status, false));
 
+			return new PluginPaymentMethodPlugin(kbPaymentMethodId, paymentMethod.getExternalKey(), false,
+					outputProperties);
+		} catch (PaymentPluginApiException e) {
+			// guarantees that Killbill will be able to render this payment method anyway,
+			// even if it does not exist on Getnet. Maybe it's a problem.
+			return new PluginPaymentMethodPlugin(kbPaymentMethodId,
+					paymentMethod != null ? paymentMethod.getExternalKey() : kbPaymentMethodId.toString(), false,
+					outputProperties);
+		} catch (PaymentApiException e) {
+			throw new PaymentPluginApiException("#getPaymentMethodDetail failed with internal API.", e);
+		}
 	}
 
 	@Override
 	public List<PaymentMethodInfoPlugin> getPaymentMethods(UUID kbAccountId, boolean refreshFromGateway,
 			Iterable<PluginProperty> properties, CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
-	}
+		List<PaymentMethodInfoPlugin> returnList = new ArrayList<PaymentMethodInfoPlugin>();
+		if (!refreshFromGateway) {
+			return returnList;
+		}
 
-	@Override
-	public Pagination<PaymentMethodPlugin> searchPaymentMethods(String searchKey, Long offset, Long limit,
-			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		try {
+			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
+			List<PaymentMethod> payments = killbillAPI.getPaymentApi().getAccountPaymentMethods(kbAccountId, false,
+					false, new ArrayList<PluginProperty>(), context);
+			for (int j = 0; j < payments.size(); j++) {
+				PaymentMethod pay = payments.get(j);
+				killbillAPI.getPaymentApi().deletePaymentMethod(account, pay.getId(), false, true,
+						new ArrayList<PluginProperty>(), context);
+			}
+
+			String res = client.getCardsByCustomerId(account.getExternalKey());
+			logger.debug("[GETNET] CARDS RESPONSE" + res);
+			Gson gson = new Gson();
+			JsonObject response = gson.fromJson(res, JsonObject.class);
+
+			if (!response.has("cards")) {
+				throw new PaymentPluginApiException("Failed to get the card list from Getnet.", "Gateway failed.");
+			}
+
+			JsonArray cards = response.getAsJsonArray("cards");
+			for (int i = 0; i < cards.size(); i++) {
+				JsonObject card = cards.get(i).getAsJsonObject();
+				returnList.add(new PluginPaymentMethodInfoPlugin(kbAccountId,
+						UUID.fromString(card.get("card_id").getAsString()), i == 0, card.get("card_id").getAsString()));
+			}
+		} catch (AccountApiException | PaymentApiException e) {
+			return returnList;
+		}
+
+		return returnList;
 	}
 
 	@Override
 	public void resetPaymentMethods(UUID kbAccountId, List<PaymentMethodInfoPlugin> paymentMethods,
 			Iterable<PluginProperty> properties, CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
+		// not supported.
+	}
 
+	@Override
+	public void setDefaultPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, Iterable<PluginProperty> properties,
+			CallContext context) throws PaymentPluginApiException {
+		// not supported.
+	}
+
+	@Override
+	public Pagination<PaymentMethodPlugin> searchPaymentMethods(String searchKey, Long offset, Long limit,
+			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
+		throw new PaymentPluginApiException("INTERNAL", "#searchPaymentMethods not supported.");
 	}
 
 	@Override
 	public HostedPaymentPageFormDescriptor buildFormDescriptor(UUID kbAccountId, Iterable<PluginProperty> customFields,
 			Iterable<PluginProperty> properties, CallContext context) throws PaymentPluginApiException {
 		throw new PaymentPluginApiException("INTERNAL", "#buildFormDescriptor not supported.");
+	}
+
+	@Override
+	public Pagination<PaymentTransactionInfoPlugin> searchPayments(String searchKey, Long offset, Long limit,
+			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
+		throw new PaymentPluginApiException("INTERNAL", "#searchPayments not supported.");
 	}
 
 	@Override
@@ -339,7 +395,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 
 		try {
 			final PaymentMethod paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId,
-					false, true, properties, context);
+					false, false, properties, context);
 			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
 
 			PaymentCredit getnetPayment = new PaymentCredit();

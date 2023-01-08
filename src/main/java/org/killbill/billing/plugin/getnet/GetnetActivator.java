@@ -37,7 +37,7 @@ public class GetnetActivator extends KillbillActivatorBase {
 		final GetnetDao getnetDao = new GetnetDao(dataSource.getDataSource());
 
 		final GetnetPaymentPluginApi pluginApi = new GetnetPaymentPluginApi(killbillAPI, clock.getClock(),
-				configProperties.getProperties(), getnetDao);
+				configProperties, getnetDao);
 		registerPaymentPluginApi(context, pluginApi);
 	}
 

@@ -20,7 +20,7 @@ import java.security.GeneralSecurityException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -28,6 +28,7 @@ import org.joda.time.DateTime;
 import org.killbill.billing.account.api.Account;
 import org.killbill.billing.account.api.AccountApiException;
 import org.killbill.billing.catalog.api.Currency;
+import org.killbill.billing.osgi.libs.killbill.OSGIConfigPropertiesService;
 import org.killbill.billing.osgi.libs.killbill.OSGIKillbillAPI;
 import org.killbill.billing.payment.api.Payment;
 import org.killbill.billing.payment.api.PaymentApiException;
@@ -59,6 +60,7 @@ import org.killbill.billing.plugin.getnet.model.PaymentCredit;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditDelayedConfirmResponse;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditResponse;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditVoidReponse;
+import org.killbill.billing.plugin.getnet.model.VaultCard;
 import org.killbill.billing.plugin.getnet.model.VaultCardResponse;
 import org.killbill.billing.plugin.util.KillBillMoney;
 import org.killbill.billing.util.callcontext.CallContext;
@@ -68,6 +70,7 @@ import org.killbill.clock.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -79,15 +82,17 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	private Clock clock;
 	private GetnetHttpClient client;
 	private GetnetDao getnetDao;
+	private OSGIConfigPropertiesService configProperties;
 
-	public GetnetPaymentPluginApi(final OSGIKillbillAPI killbillAPI, final Clock clock, Properties configProperties,
-			GetnetDao getnetDao) {
+	public GetnetPaymentPluginApi(final OSGIKillbillAPI killbillAPI, final Clock clock,
+			OSGIConfigPropertiesService configProperties, GetnetDao getnetDao) {
 		this.killbillAPI = killbillAPI;
 		this.clock = clock;
 		this.getnetDao = getnetDao;
+		this.configProperties = configProperties;
 
 		try {
-			this.client = new GetnetHttpClient(configProperties);
+			this.client = new GetnetHttpClient(configProperties.getProperties());
 		} catch (GeneralSecurityException e) {
 			logger.error("[Getnet] Failed to create http client.");
 		}
@@ -287,52 +292,61 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public void addPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMethodPlugin paymentMethodProps,
 			boolean setDefault, Iterable<PluginProperty> properties, CallContext context)
 			throws PaymentPluginApiException {
-//		VaultCard vaultCard = new VaultCard();
-//		List<PluginProperty> props = paymentMethodProps.getProperties();
-//		Gson gson = new Gson();
-//		for (int i = 0; i < props.size(); i++) {
-//			switch (props.get(i).getKey()) {
-//			case "ccFirstName":
-//				vaultCard.setCardholderName(props.get(i).getValue().toString());
-//				break;
-//			case "ccExpirationMonth":
-//				vaultCard.setExpirationMonth(props.get(i).getValue().toString().substring(0, 2));
-//				break;
-//			case "ccExpirationYear":
-//				vaultCard.setExpirationYear(props.get(i).getValue().toString().substring(0, 2));
-//				break;
-//			case "ccNumber":
-//				String res = client.tokenCard(kbAccountId.toString(), props.get(i).getValue().toString());
-//				JsonObject response = gson.fromJson(res, JsonObject.class);
-//				vaultCard.setNumberToken(response.get("number_token").getAsString());
-//				break;
-//			default:
-//				break;
-//			}
-//		}
-//
-//		vaultCard.setVerifyCard(true);
-//
-//		try {
-//			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
-//			vaultCard.setCustomerId(account.getExternalKey());
-//			String res = client.saveCardToVault(vaultCard);
-//			VaultCardResponse response = gson.fromJson(res, VaultCardResponse.class);
-//
+		VaultCard vaultCard = new VaultCard();
+		List<PluginProperty> props = paymentMethodProps.getProperties();
+		Gson gson = new Gson();
+		for (int i = 0; i < props.size(); i++) {
+			switch (props.get(i).getKey()) {
+			case "ccFirstName":
+				vaultCard.setCardholderName(props.get(i).getValue().toString());
+				break;
+			case "ccExpirationMonth":
+				vaultCard.setExpirationMonth(props.get(i).getValue().toString().substring(0, 2));
+				break;
+			case "ccExpirationYear":
+				vaultCard.setExpirationYear(props.get(i).getValue().toString().substring(0, 2));
+				break;
+			case "ccNumber":
+				String res = client.tokenCard(kbAccountId.toString(), props.get(i).getValue().toString());
+				JsonObject response = gson.fromJson(res, JsonObject.class);
+				vaultCard.setNumberToken(response.get("number_token").getAsString());
+				break;
+			default:
+				break;
+			}
+		}
+
+		vaultCard.setVerifyCard(Boolean.valueOf(
+				configProperties.getProperties().getProperty(GetnetActivator.PROPERTY_PREFIX + "verify_card", "true")));
+
+		try {
+			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
+			vaultCard.setCustomerId(account.getExternalKey());
+			String res = client.saveCardToVault(vaultCard);
+			VaultCardResponse response = gson.fromJson(res, VaultCardResponse.class);
+
+			Map<String, String> daoProperties = ImmutableMap.of("token", response.card_id);
+			getnetDao.addPaymentMethod(kbAccountId, kbPaymentMethodId, setDefault, daoProperties, clock.getUTCNow(),
+					context.getTenantId());
+
 //			paymentMethodProps.getProperties().add(new PluginProperty("externalKey", response.card_id, false));
 //
 //			List<PluginProperty> opts = new ArrayList<PluginProperty>();
 //			PluginPaymentMethodPlugin methodPlugin = new PluginPaymentMethodPlugin(UUID.randomUUID(), response.card_id,
 //					paymentMethodProps.isDefaultPaymentMethod(), opts);
-//			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME, true, methodPlugin, opts, context);
-////			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME,
-////					paymentMethodProps.isDefaultPaymentMethod(), methodPlugin, opts, context);
-//		} catch (AccountApiException e) {
-//			throw new PaymentPluginApiException("#addPaymentMethod failed with internal API.", e);
-////		}
+//			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME, true,
+//					methodPlugin, opts, context);
+//			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME,
+//					paymentMethodProps.isDefaultPaymentMethod(), methodPlugin, opts, context);
+
+		} catch (AccountApiException e) {
+			throw new PaymentPluginApiException("#addPaymentMethod failed with internal API.", e);
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("#addPaymentMethod failed to store on internal payments table.",
+					e.getMessage());
+		}
 //		} catch (PaymentApiException e) {
-//			throw new PaymentPluginApiException("#addPaymentMethod failed with Payment internal API.",
-//					e.getMessage());
+//			throw new PaymentPluginApiException("#addPaymentMethod failed with Payment internal API.", e.getMessage());
 //		}
 
 	}
@@ -456,11 +470,10 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public GatewayNotification processNotification(String notification, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		throw new PaymentPluginApiException("INTERNAL",
-				"#processNotification not yet implemented, please contact support@killbill.io");
+		throw new PaymentPluginApiException("INTERNAL", "#processNotification not used.");
 	}
 
-	private PaymentTransactionInfoPlugin buildPaymentTransactionInfoPlugin(GetnetPaymentsRecord record) {
+	public PaymentTransactionInfoPlugin buildPaymentTransactionInfoPlugin(GetnetPaymentsRecord record) {
 		List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
 
 		outputProperties.add(new PluginProperty("paymentId", record.getGetnetPaymentId(), false));
@@ -541,8 +554,6 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			logger.info("Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
 			return paymentTransactionInfoPlugin;
 		}
-
 		return paymentTransactionInfoPlugin;
 	}
-
 }

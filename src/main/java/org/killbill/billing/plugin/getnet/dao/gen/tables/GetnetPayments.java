@@ -244,10 +244,6 @@ public class GetnetPayments extends TableImpl<GetnetPaymentsRecord> {
 		return Keys.KEY_GETNET_PAYMENTS_PRIMARY;
 	}
 
-	public List<UniqueKey<GetnetPaymentsRecord>> getUniqueKeys() {
-		return Arrays.asList(Keys.KEY_GETNET_PAYMENTS_RECORD_ID);
-	}
-
 	@Override
 	public GetnetPayments as(String alias) {
 		return new GetnetPayments(DSL.name(alias), this);
@@ -273,4 +269,5 @@ public class GetnetPayments extends TableImpl<GetnetPaymentsRecord> {
 	public GetnetPayments rename(Name name) {
 		return new GetnetPayments(name, null);
 	}
+
 }

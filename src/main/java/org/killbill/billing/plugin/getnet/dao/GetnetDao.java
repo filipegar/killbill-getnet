@@ -17,11 +17,13 @@
 
 package org.killbill.billing.plugin.getnet.dao;
 
+import static org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPaymentMethods.GETNET_PAYMENT_METHODS;
 import static org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments.GETNET_PAYMENTS;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.sql.DataSource;
@@ -32,18 +34,20 @@ import org.jooq.impl.DSL;
 import org.killbill.billing.catalog.api.Currency;
 import org.killbill.billing.payment.api.TransactionType;
 import org.killbill.billing.plugin.dao.payment.PluginPaymentDao;
+import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPaymentMethods;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments;
+import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentMethodsRecord;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentsRecord;
 import org.killbill.billing.plugin.getnet.model.PaymentCreditResponse;
 import org.killbill.billing.plugin.getnet.model.PaymentOperation;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
-public class GetnetDao
-		extends PluginPaymentDao<GetnetPaymentsRecord, GetnetPayments, GetnetPaymentsRecord, GetnetPayments> {
+public class GetnetDao extends
+		PluginPaymentDao<GetnetPaymentsRecord, GetnetPayments, GetnetPaymentMethodsRecord, GetnetPaymentMethods> {
 
 	public GetnetDao(final DataSource dataSource) throws SQLException {
-		super(GETNET_PAYMENTS, GETNET_PAYMENTS, dataSource);
+		super(GETNET_PAYMENTS, GETNET_PAYMENT_METHODS, dataSource);
 		// Save space in the database
 		objectMapper.setSerializationInclusion(Include.NON_EMPTY);
 	}
@@ -131,6 +135,27 @@ public class GetnetDao
 						.where(DSL.field(responsesTable.getName() + "." + KB_PAYMENT_ID).equal(kbPaymentId.toString()))
 						.and(DSL.field(responsesTable.getName() + "." + KB_TENANT_ID).equal(kbTenantId.toString()))
 						.orderBy(DSL.field(responsesTable.getName() + "." + RECORD_ID).desc()).limit(1).fetchOne();
+			}
+		});
+	}
+
+	@Override
+	public void addPaymentMethod(final UUID kbAccountId, final UUID kbPaymentMethodId, final boolean isDefault,
+			final Map<String, String> properties, final DateTime utcNow, final UUID kbTenantId) throws SQLException {
+
+		execute(dataSource.getConnection(), new WithConnectionCallback<GetnetPaymentMethodsRecord>() {
+			@Override
+			public GetnetPaymentMethodsRecord withConnection(final Connection conn) throws SQLException {
+				DSL.using(conn, dialect, settings)
+						.insertInto(GETNET_PAYMENT_METHODS, GETNET_PAYMENT_METHODS.KB_ACCOUNT_ID,
+								GETNET_PAYMENT_METHODS.KB_PAYMENT_METHOD_ID, GETNET_PAYMENT_METHODS.GETNET_CARD_ID,
+								GETNET_PAYMENT_METHODS.IS_DELETED, GETNET_PAYMENT_METHODS.CREATED_DATE,
+								GETNET_PAYMENT_METHODS.UPDATED_DATE, GETNET_PAYMENT_METHODS.KB_TENANT_ID)
+						.values(kbAccountId.toString(), kbPaymentMethodId.toString(), (String) properties.get("token"),
+								(short) FALSE, toLocalDateTime(utcNow), toLocalDateTime(utcNow), kbTenantId.toString())
+						.execute();
+
+				return null;
 			}
 		});
 	}

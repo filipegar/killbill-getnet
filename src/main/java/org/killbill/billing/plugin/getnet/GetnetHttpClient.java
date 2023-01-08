@@ -202,9 +202,8 @@ public class GetnetHttpClient extends HttpClient {
 			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
 		}
 	}
-	
-	public String tokenCard(String accountId, String pan)
-			throws PaymentPluginApiException {
+
+	public String tokenCard(String accountId, String pan) throws PaymentPluginApiException {
 		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
 				this.getAccessToken(), "seller_id", sellerId);
 		Map<String, String> query = ImmutableMap.of();
@@ -228,14 +227,14 @@ public class GetnetHttpClient extends HttpClient {
 			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
 		}
 	}
-	
-	public String saveCardToVault(VaultCard vaultCard)
-			throws PaymentPluginApiException {
+
+	public String saveCardToVault(VaultCard vaultCard) throws PaymentPluginApiException {
 		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
 				this.getAccessToken(), "seller_id", sellerId);
 		Map<String, String> query = ImmutableMap.of();
 
 		try {
+
 			return doCall(POST, url + "/v1/cards", vaultCard.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {
@@ -247,7 +246,8 @@ public class GetnetHttpClient extends HttpClient {
 				throw new PaymentPluginApiException(res.get("message").getAsString(), e);
 			}
 
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", "Failed to process GETNET paymnet.");
+			throw new PaymentPluginApiException("Failed to process GETNET paymnet.",
+					"Failed to process GETNET paymnet.");
 		}
 	}
 

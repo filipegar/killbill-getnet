@@ -9,6 +9,7 @@ import java.util.List;
 import org.jooq.Catalog;
 import org.jooq.Table;
 import org.jooq.impl.SchemaImpl;
+import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPaymentMethods;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments;
 
 /**
@@ -23,6 +24,11 @@ public class Killbill extends SchemaImpl {
 	 * The reference instance of <code>killbill</code>
 	 */
 	public static final Killbill KILLBILL = new Killbill();
+
+	/**
+	 * The table <code>killbill.getnet_payment_methods</code>.
+	 */
+	public final GetnetPaymentMethods GETNET_PAYMENT_METHODS = GetnetPaymentMethods.GETNET_PAYMENT_METHODS;
 
 	/**
 	 * The table <code>killbill.getnet_payments</code>.
@@ -43,6 +49,6 @@ public class Killbill extends SchemaImpl {
 
 	@Override
 	public final List<Table<?>> getTables() {
-		return Arrays.asList(GetnetPayments.GETNET_PAYMENTS);
+		return Arrays.asList(GetnetPaymentMethods.GETNET_PAYMENT_METHODS, GetnetPayments.GETNET_PAYMENTS);
 	}
 }

@@ -7,6 +7,7 @@ import org.jooq.Index;
 import org.jooq.OrderField;
 import org.jooq.impl.DSL;
 import org.jooq.impl.Internal;
+import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPaymentMethods;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments;
 
 /**
@@ -19,6 +20,9 @@ public class Indexes {
 	// INDEX definitions
 	// -------------------------------------------------------------------------
 
+	public static final Index GETNET_PAYMENT_METHODS_GETNET_PAYMENT_METHODS_GETNET_CARD_ID = Internal.createIndex(
+			DSL.name("getnet_payment_methods_getnet_card_id"), GetnetPaymentMethods.GETNET_PAYMENT_METHODS,
+			new OrderField[] { GetnetPaymentMethods.GETNET_PAYMENT_METHODS.GETNET_CARD_ID }, false);
 	public static final Index GETNET_PAYMENTS_GETNET_PAYMENTS_GETNET_PAYMENT_ID = Internal.createIndex(
 			DSL.name("getnet_payments_getnet_payment_id"), GetnetPayments.GETNET_PAYMENTS,
 			new OrderField[] { GetnetPayments.GETNET_PAYMENTS.GETNET_PAYMENT_ID }, false);

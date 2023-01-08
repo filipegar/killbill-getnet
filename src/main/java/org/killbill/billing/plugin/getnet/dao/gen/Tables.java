@@ -3,6 +3,7 @@
  */
 package org.killbill.billing.plugin.getnet.dao.gen;
 
+import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPaymentMethods;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments;
 
 /**
@@ -10,6 +11,11 @@ import org.killbill.billing.plugin.getnet.dao.gen.tables.GetnetPayments;
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class Tables {
+
+	/**
+	 * The table <code>killbill.getnet_payment_methods</code>.
+	 */
+	public static final GetnetPaymentMethods GETNET_PAYMENT_METHODS = GetnetPaymentMethods.GETNET_PAYMENT_METHODS;
 
 	/**
 	 * The table <code>killbill.getnet_payments</code>.

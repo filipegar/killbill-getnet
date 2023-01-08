@@ -175,6 +175,34 @@ public class GetnetHttpClient extends HttpClient {
 		}
 	}
 
+	public String refundTransaction(String paymentId, Integer amount, String cancelCustomKey)
+			throws PaymentPluginApiException {
+		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
+				this.getAccessToken(), "seller_id", sellerId);
+		Map<String, String> query = ImmutableMap.of();
+
+		JsonObject request = new JsonObject();
+		request.addProperty("cancel_amount", amount);
+		request.addProperty("payment_id", paymentId);
+		request.addProperty("cancel_custom_key", cancelCustomKey.substring(0, 30));
+
+		try {
+			return doCall(POST, url + "/v1/payments/cancel/request", request.toString(), query, headers, String.class,
+					ResponseFormat.TEXT);
+		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {
+			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+		} catch (InvalidRequest e) {
+			if (e.getResponse().getStatusCode() == 400 && e.getResponse().hasResponseBody()) {
+				Gson gson = new Gson();
+				JsonObject res = gson.fromJson(e.getResponse().getResponseBody(), JsonObject.class);
+				throw new PaymentPluginApiException(res.get("message").getAsString(), e);
+			}
+
+			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+		}
+
+	}
+
 	public String getAccessToken() {
 		if (accessToken.isEmpty()) {
 			doLogin();

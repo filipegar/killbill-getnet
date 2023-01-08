@@ -48,6 +48,7 @@ import org.killbill.billing.plugin.api.payment.PluginPaymentTransactionInfoPlugi
 import org.killbill.billing.plugin.getnet.dao.GetnetDao;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentsRecord;
 import org.killbill.billing.plugin.getnet.model.BillingAddress;
+import org.killbill.billing.plugin.getnet.model.CancelRequestResponse;
 import org.killbill.billing.plugin.getnet.model.CardCredit;
 import org.killbill.billing.plugin.getnet.model.Credit;
 import org.killbill.billing.plugin.getnet.model.Credit.TransactionTypeEnum;
@@ -220,8 +221,48 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public PaymentTransactionInfoPlugin refundPayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
 			UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-		return null;
+		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin = null;
+
+		try {
+			GetnetPaymentsRecord record = null;
+			String getnetPaymentId = "";
+			List<GetnetPaymentsRecord> responses = getnetDao.getResponses(kbPaymentId, context.getTenantId());
+			for (int i = 0; i < responses.size(); i++) {
+				record = responses.get(i);
+				if (!record.getGetnetPaymentId().isEmpty()) {
+					getnetPaymentId = record.getGetnetPaymentId();
+					break;
+				}
+			}
+
+			String res = client.refundTransaction(getnetPaymentId,
+					Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)),
+					kbTransactionId.toString());
+			Gson gson = new Gson();
+			CancelRequestResponse response = gson.fromJson(res, CancelRequestResponse.class);
+
+			getnetDao.addResponseGeneric(kbAccountId, kbPaymentId, kbTransactionId, TransactionType.REFUND, amount,
+					currency, response, context.getTenantId(), record);
+
+			PaymentPluginStatus status;
+			if (response.getStatus().equalsIgnoreCase("DENIED")) {
+				status = PaymentPluginStatus.ERROR;
+			} else {
+				status = PaymentPluginStatus.PENDING;
+			}
+
+			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+					TransactionType.REFUND, amount, currency, status, response.getStatus(),
+					status.equals(PaymentPluginStatus.PENDING) ? "00" : "01", response.getCancelRequestId(), null,
+					clock.getUTCNow(), clock.getUTCNow(), new ArrayList<PluginProperty>());
+		} catch (SQLException | PaymentPluginApiException e) {
+			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+					TransactionType.REFUND, amount, currency, PaymentPluginStatus.ERROR,
+					"Failed to find related Getnet transaction. " + e.getMessage(), "E100", null, null,
+					clock.getUTCNow(), clock.getUTCNow(), new ArrayList<PluginProperty>());
+		}
+
+		return paymentTransactionInfoPlugin;
 	}
 
 	@Override

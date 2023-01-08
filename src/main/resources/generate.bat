@@ -1,19 +1,24 @@
-REM
- REM Copyright 2021 The Billing Project, LLC
- REM
- REM The Billing Project licenses this file to you under the Apache License, version 2.0
- REM (the "License"); you may not use this file except in compliance with the
- REM License.  You may obtain a copy of the License at:
- REM
- REM    http://www.apache.org/licenses/LICENSE-2.0
- REM
- REM Unless required by applicable law or agreed to in writing, software
- REM distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- REM WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
- REM License for the specific language governing permissions and limitations
- REM under the License.
- 
- 
+@rem ***************************************************************************
+@rem Copyright (c) 2023 Filipe Garcia
+@rem
+@rem Licensed under the Apache License, Version 2.0 (the "License");
+@rem you may not use this file except in compliance with the License.
+@rem You may obtain a copy of the License at
+@rem
+@rem     http://www.apache.org/licenses/LICENSE-2.0
+@rem
+@rem Unless required by applicable law or agreed to in writing, software
+@rem distributed under the License is distributed on an "AS IS" BASIS,
+@rem WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@rem See the License for the specific language governing permissions and
+@rem limitations under the License.
+@rem
+@rem SPDX short identifier: Apache-2.0
+@rem
+@rem Contributors:
+@rem     Filipe Garcia - initial API and implementation
+@rem ***************************************************************************
+
 java -classpath jooq-3.17.6.jar;^
 jooq-meta-3.17.6.jar;^
 jooq-codegen-3.17.6.jar;^

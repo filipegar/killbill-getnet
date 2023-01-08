@@ -253,8 +253,14 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public void deletePaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
-
+		PaymentMethod paymentMethod = null;
+		try {
+			paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId, false, false,
+					properties, context);
+			client.deleteCardFromVault(paymentMethod.getExternalKey().toString());
+		} catch (PaymentApiException e) {
+			throw new PaymentPluginApiException("#deletePaymentMethod failed with internal API.", e);
+		}
 	}
 
 	@Override

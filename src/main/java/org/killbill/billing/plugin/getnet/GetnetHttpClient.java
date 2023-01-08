@@ -148,18 +148,30 @@ public class GetnetHttpClient extends HttpClient {
 			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
 		}
 	}
-	
+
 	public String getCardsByCustomerId(String customerId) throws PaymentPluginApiException {
 		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
 				this.getAccessToken(), "seller_id", sellerId);
 		Map<String, String> query = ImmutableMap.of("status", "active", "customer_id", customerId);
 
 		try {
-			return doCall(GET, url + "/v1/cards", "{}", query, headers,
-					String.class, ResponseFormat.TEXT);
+			return doCall(GET, url + "/v1/cards", "{}", query, headers, String.class, ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
 			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+		}
+	}
+
+	public String deleteCardFromVault(String cardId) throws PaymentPluginApiException {
+		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
+				this.getAccessToken(), "seller_id", sellerId);
+		Map<String, String> query = ImmutableMap.of();
+
+		try {
+			return doCall(DELETE, url + "/v1/cards/" + cardId, "{}", query, headers, String.class, ResponseFormat.TEXT);
+		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
+				| InvalidRequest e) {
+			throw new PaymentPluginApiException("Failed to delete card on Getnet.", e);
 		}
 	}
 

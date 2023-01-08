@@ -287,7 +287,53 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public void addPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMethodPlugin paymentMethodProps,
 			boolean setDefault, Iterable<PluginProperty> properties, CallContext context)
 			throws PaymentPluginApiException {
-		// TODO Auto-generated method stub
+//		VaultCard vaultCard = new VaultCard();
+//		List<PluginProperty> props = paymentMethodProps.getProperties();
+//		Gson gson = new Gson();
+//		for (int i = 0; i < props.size(); i++) {
+//			switch (props.get(i).getKey()) {
+//			case "ccFirstName":
+//				vaultCard.setCardholderName(props.get(i).getValue().toString());
+//				break;
+//			case "ccExpirationMonth":
+//				vaultCard.setExpirationMonth(props.get(i).getValue().toString().substring(0, 2));
+//				break;
+//			case "ccExpirationYear":
+//				vaultCard.setExpirationYear(props.get(i).getValue().toString().substring(0, 2));
+//				break;
+//			case "ccNumber":
+//				String res = client.tokenCard(kbAccountId.toString(), props.get(i).getValue().toString());
+//				JsonObject response = gson.fromJson(res, JsonObject.class);
+//				vaultCard.setNumberToken(response.get("number_token").getAsString());
+//				break;
+//			default:
+//				break;
+//			}
+//		}
+//
+//		vaultCard.setVerifyCard(true);
+//
+//		try {
+//			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
+//			vaultCard.setCustomerId(account.getExternalKey());
+//			String res = client.saveCardToVault(vaultCard);
+//			VaultCardResponse response = gson.fromJson(res, VaultCardResponse.class);
+//
+//			paymentMethodProps.getProperties().add(new PluginProperty("externalKey", response.card_id, false));
+//
+//			List<PluginProperty> opts = new ArrayList<PluginProperty>();
+//			PluginPaymentMethodPlugin methodPlugin = new PluginPaymentMethodPlugin(UUID.randomUUID(), response.card_id,
+//					paymentMethodProps.isDefaultPaymentMethod(), opts);
+//			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME, true, methodPlugin, opts, context);
+////			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME,
+////					paymentMethodProps.isDefaultPaymentMethod(), methodPlugin, opts, context);
+//		} catch (AccountApiException e) {
+//			throw new PaymentPluginApiException("#addPaymentMethod failed with internal API.", e);
+////		}
+//		} catch (PaymentApiException e) {
+//			throw new PaymentPluginApiException("#addPaymentMethod failed with Payment internal API.",
+//					e.getMessage());
+//		}
 
 	}
 

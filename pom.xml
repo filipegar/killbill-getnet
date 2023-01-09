@@ -27,15 +27,15 @@
     <packaging>bundle</packaging>
     <name>Kill Bill Getnet Payment bundle</name>
     <description>Kill Bill Getnet plugin</description>
-    <url>https://github.com/killbill/killbill-gocardless-example-plugin</url>
+    <url>https://github.com/filipegar/killbill-getnet-plugin</url>
     <scm>
-        <connection>scm:git:git://github.com/killbill/killbill-gocardless-example-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:killbill/killbill-gocardless-example-plugin.git</developerConnection>
-        <url>http://github.com/killbill/killbill-gocardless-example-plugin/tree/master</url>
+        <connection>scm:git:git://github.com/filipegar/killbill-getnet-plugin.git</connection>
+        <developerConnection>scm:git:git@github.com:filipegar/killbill-getnet-plugin.git</developerConnection>
+        <url>https://github.com/filipegar/killbill-getnet-plugin/tree/main</url>
     </scm>
     <issueManagement>
         <system>Github</system>
-        <url>https://github.com/killbill/killbill-gocardless-example-plugin/issues</url>
+        <url>https://github.com/filipegar/killbill-getnet-plugin/issues</url>
     </issueManagement>
     <properties>
         <osgi.private>org.killbill.billing.plugin.getnet.*</osgi.private>

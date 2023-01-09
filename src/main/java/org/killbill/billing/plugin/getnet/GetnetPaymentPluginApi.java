@@ -52,6 +52,7 @@ import org.killbill.billing.plugin.api.payment.PluginPaymentMethodInfoPlugin;
 import org.killbill.billing.plugin.api.payment.PluginPaymentMethodPlugin;
 import org.killbill.billing.plugin.api.payment.PluginPaymentTransactionInfoPlugin;
 import org.killbill.billing.plugin.getnet.dao.GetnetDao;
+import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentMethodsRecord;
 import org.killbill.billing.plugin.getnet.dao.gen.tables.records.GetnetPaymentsRecord;
 import org.killbill.billing.plugin.getnet.model.BillingAddress;
 import org.killbill.billing.plugin.getnet.model.CancelRequestResponse;
@@ -75,6 +76,7 @@ import org.killbill.clock.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -297,89 +299,61 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public void addPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMethodPlugin paymentMethodProps,
 			boolean setDefault, Iterable<PluginProperty> properties, CallContext context)
 			throws PaymentPluginApiException {
-		VaultCard vaultCard = new VaultCard();
-		List<PluginProperty> props = paymentMethodProps.getProperties();
-		Gson gson = new Gson();
-		for (int i = 0; i < props.size(); i++) {
-			switch (props.get(i).getKey()) {
-			case "ccFirstName":
-				vaultCard.setCardholderName(props.get(i).getValue().toString());
-				break;
-			case "ccExpirationMonth":
-				vaultCard.setExpirationMonth(props.get(i).getValue().toString().substring(0, 2));
-				break;
-			case "ccExpirationYear":
-				vaultCard.setExpirationYear(props.get(i).getValue().toString().substring(0, 2));
-				break;
-			case "ccNumber":
-				String res = client.tokenCard(kbAccountId.toString(), props.get(i).getValue().toString());
-				JsonObject response = gson.fromJson(res, JsonObject.class);
-				vaultCard.setNumberToken(response.get("number_token").getAsString());
-				break;
-			default:
-				break;
+		List<PluginProperty> result = ImmutableList.copyOf(properties);
+		PluginProperty externalProp = null;
+		Boolean shouldRecordCard = false;
+
+		if (result.size() >= 1) {
+			for (int i = 0; i < result.size(); i++) {
+				externalProp = result.get(i);
+				if (externalProp.getKey().equals("cardId")) {
+					shouldRecordCard = true;
+					break;
+				}
 			}
 		}
 
-		vaultCard.setVerifyCard(Boolean.valueOf(
-				configProperties.getProperties().getProperty(GetnetActivator.PROPERTY_PREFIX + "verify_card", "true")));
-
-		try {
-			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
-			vaultCard.setCustomerId(account.getExternalKey());
-			String res = client.saveCardToVault(vaultCard);
-			VaultCardResponse response = gson.fromJson(res, VaultCardResponse.class);
-
-			Map<String, String> daoProperties = ImmutableMap.of("token", response.getCardId());
-			getnetDao.addPaymentMethod(kbAccountId, kbPaymentMethodId, setDefault, daoProperties, clock.getUTCNow(),
-					context.getTenantId());
-
-//			paymentMethodProps.getProperties().add(new PluginProperty("externalKey", response.card_id, false));
-//
-//			List<PluginProperty> opts = new ArrayList<PluginProperty>();
-//			PluginPaymentMethodPlugin methodPlugin = new PluginPaymentMethodPlugin(UUID.randomUUID(), response.card_id,
-//					paymentMethodProps.isDefaultPaymentMethod(), opts);
-//			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME, true,
-//					methodPlugin, opts, context);
-//			killbillAPI.getPaymentApi().addPaymentMethod(account, response.card_id, GetnetActivator.PLUGIN_NAME,
-//					paymentMethodProps.isDefaultPaymentMethod(), methodPlugin, opts, context);
-
-		} catch (AccountApiException e) {
-			throw new PaymentPluginApiException("#addPaymentMethod failed with internal API.", e);
-		} catch (SQLException e) {
-			throw new PaymentPluginApiException("#addPaymentMethod failed to store on internal payments table.",
-					e.getMessage());
+		if (shouldRecordCard == true && externalProp != null) {
+			this.addPaymentMethodLocal(kbAccountId, kbPaymentMethodId, paymentMethodProps, setDefault, context,
+					externalProp.getValue().toString());
+		} else {
+			this.addPaymentMethodGetnet(kbAccountId, kbPaymentMethodId, paymentMethodProps, setDefault, properties,
+					context);
 		}
-//		} catch (PaymentApiException e) {
-//			throw new PaymentPluginApiException("#addPaymentMethod failed with Payment internal API.", e.getMessage());
-//		}
-
 	}
 
 	@Override
 	public void deletePaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		PaymentMethod paymentMethod = null;
+		GetnetPaymentMethodsRecord record;
 		try {
-			paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId, false, false,
-					properties, context);
-			client.deleteCardFromVault(paymentMethod.getExternalKey().toString());
-		} catch (PaymentApiException e) {
-			throw new PaymentPluginApiException("#deletePaymentMethod failed with internal API.", e);
+			record = getnetDao.getPaymentMethod(kbPaymentMethodId, context.getTenantId());
+			try {
+				client.deleteCardFromVault(record.getGetnetCardId().toString());
+			} catch (PaymentPluginApiException e) {
+				logger.error("[GETNET] Failed to remove card on Getnet end. " + e.getMessage());
+			}
+
+			Map<String, Object> props = ImmutableMap.of("isDeleted", true, "isDefault", false);
+			getnetDao.updatePaymentMethod(kbAccountId, kbPaymentMethodId, props, clock.getUTCNow(),
+					context.getTenantId(), record.getGetnetCardId().toString());
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("#deletePaymentMethod failed to find/update Getnet table records.", e);
 		}
 	}
 
 	@Override
 	public PaymentMethodPlugin getPaymentMethodDetail(UUID kbAccountId, UUID kbPaymentMethodId,
 			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
-		PaymentMethod paymentMethod = null;
 		List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
 		Gson gson = new Gson();
+		PaymentMethod paymentMethod = null;
 
 		try {
 			paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId, false, false,
 					properties, context);
-			String res = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+			GetnetPaymentMethodsRecord record = getnetDao.getPaymentMethod(kbPaymentMethodId, context.getTenantId());
+			String res = client.exchangeTokenForNumberToken(record.getGetnetCardId().toString());
 			VaultCardResponse cardRes = gson.fromJson(res, VaultCardResponse.class);
 
 			outputProperties.add(new PluginProperty("getnetCardId", cardRes.getCardId(), false));
@@ -400,8 +374,10 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			return new PluginPaymentMethodPlugin(kbPaymentMethodId,
 					paymentMethod != null ? paymentMethod.getExternalKey() : kbPaymentMethodId.toString(), false,
 					outputProperties);
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("Requested card does not exist in Getnet tables. Plugin wont work.", e);
 		} catch (PaymentApiException e) {
-			throw new PaymentPluginApiException("#getPaymentMethodDetail failed with internal API.", e);
+			throw new PaymentPluginApiException("Payment API failed.", e);
 		}
 	}
 
@@ -439,6 +415,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 						UUID.fromString(card.get("card_id").getAsString()), i == 0, card.get("card_id").getAsString()));
 			}
 		} catch (AccountApiException | PaymentApiException e) {
+			logger.error("[GETNET] getPaymentMethods failed - " + e.getMessage());
 			return returnList;
 		}
 
@@ -448,13 +425,22 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public void resetPaymentMethods(UUID kbAccountId, List<PaymentMethodInfoPlugin> paymentMethods,
 			Iterable<PluginProperty> properties, CallContext context) throws PaymentPluginApiException {
-		// not supported.
+		throw new PaymentPluginApiException("INTERNAL", "#resetPaymentMethods not supported.");
 	}
 
 	@Override
 	public void setDefaultPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
-		// not supported.
+		try {
+			GetnetPaymentMethodsRecord record = getnetDao.getPaymentMethod(kbPaymentMethodId, context.getTenantId());
+			getnetDao.markAllNotDefaultCards(kbAccountId, context.getTenantId(), clock.getUTCNow());
+
+			Map<String, Object> props = ImmutableMap.of("isDeleted", false, "isDefault", true);
+			getnetDao.updatePaymentMethod(kbAccountId, kbPaymentMethodId, props, clock.getUTCNow(),
+					context.getTenantId(), record.getGetnetCardId().toString());
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("Failed to update default records on Getnet table", e);
+		}
 	}
 
 	@Override
@@ -510,9 +496,9 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 		String res = null;
 
 		try {
-			final PaymentMethod paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId,
-					false, false, properties, context);
-			res = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+			GetnetPaymentMethodsRecord cardRecord = getnetDao.getPaymentMethod(kbPaymentMethodId,
+					context.getTenantId());
+			res = client.exchangeTokenForNumberToken(cardRecord.getGetnetCardId().toString());
 			VaultCardResponse cardRes = gson.fromJson(res, VaultCardResponse.class);
 
 			PaymentCredit getnetPayment = new PaymentCredit();
@@ -544,7 +530,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			getnetPayment.setCredit(creditTransaction);
 
 			res = client.sendPaymentRequest(getnetPayment);
-			logger.debug("[GETNET] PAYMNET RESPONSE" + res);
+			logger.debug("[GETNET] PAYMENT RESPONSE" + res);
 			PaymentCreditResponse response = gson.fromJson(res, PaymentCreditResponse.class);
 
 			try {
@@ -553,17 +539,82 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 
 				return buildPaymentTransactionInfoPlugin(record);
 			} catch (SQLException e) {
-				logger.error("Getnet DAO failed to save data. " + e.getMessage());
+				logger.error("[GETNET] Getnet DAO failed to save data. " + e.getMessage());
+				throw new PaymentPluginApiException("Failed to store transaction on local tables.", e);
 			}
-		} catch (PaymentApiException | PaymentPluginApiException e) {
-			logger.error("Failed to retrieve context. " + e.getMessage());
+		} catch (PaymentPluginApiException e) {
+			logger.error("[GETNET] Transaction may have failed. " + e.getMessage());
 			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
-					TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.ERROR, "Error", "100", null, null,
+					transactionType.equals(TransactionType.AUTHORIZE) ? TransactionType.AUTHORIZE
+							: TransactionType.PURCHASE,
+					amount, currency, PaymentPluginStatus.UNDEFINED, e.getMessage(), "E1000", null, null,
 					new DateTime(), null, null);
 
-			logger.info("Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
+			logger.debug("[GETNET] Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
 			return paymentTransactionInfoPlugin;
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("Failed to retrieve card from local tables.", e);
 		}
-		return paymentTransactionInfoPlugin;
+	}
+
+	private void addPaymentMethodGetnet(UUID kbAccountId, UUID kbPaymentMethodId,
+			PaymentMethodPlugin paymentMethodProps, boolean setDefault, Iterable<PluginProperty> properties,
+			CallContext context) throws PaymentPluginApiException {
+		VaultCard vaultCard = new VaultCard();
+		List<PluginProperty> props = paymentMethodProps.getProperties();
+		Gson gson = new Gson();
+		for (int i = 0; i < props.size(); i++) {
+			switch (props.get(i).getKey()) {
+			case "ccFirstName":
+				vaultCard.setCardholderName(props.get(i).getValue().toString());
+				break;
+			case "ccExpirationMonth":
+				vaultCard.setExpirationMonth(props.get(i).getValue().toString().substring(0, 2));
+				break;
+			case "ccExpirationYear":
+				vaultCard.setExpirationYear(props.get(i).getValue().toString().substring(0, 2));
+				break;
+			case "ccNumber":
+				String res = client.tokenCard(kbAccountId.toString(), props.get(i).getValue().toString());
+				JsonObject response = gson.fromJson(res, JsonObject.class);
+				vaultCard.setNumberToken(response.get("number_token").getAsString());
+				break;
+			default:
+				break;
+			}
+		}
+
+		vaultCard.setVerifyCard(Boolean.valueOf(
+				configProperties.getProperties().getProperty(GetnetActivator.PROPERTY_PREFIX + "verify_card", "true")));
+
+		try {
+			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
+			vaultCard.setCustomerId(account.getExternalKey());
+			String res = client.saveCardToVault(vaultCard);
+			VaultCardResponse response = gson.fromJson(res, VaultCardResponse.class);
+
+			Map<String, String> daoProperties = ImmutableMap.of("token", response.getCardId());
+			getnetDao.addPaymentMethod(kbAccountId, kbPaymentMethodId, setDefault, daoProperties, clock.getUTCNow(),
+					context.getTenantId());
+		} catch (AccountApiException e) {
+			throw new PaymentPluginApiException("#addPaymentMethod failed with internal API.", e);
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("#addPaymentMethod failed to store on internal payments table.",
+					e.getMessage());
+		}
+	}
+
+	private void addPaymentMethodLocal(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMethodPlugin paymentMethodProps,
+			boolean setDefault, CallContext context, String cardToken) throws PaymentPluginApiException {
+
+		Map<String, String> daoProperties = ImmutableMap.of("token", cardToken);
+
+		try {
+			getnetDao.addPaymentMethod(kbAccountId, kbPaymentMethodId, setDefault, daoProperties, clock.getUTCNow(),
+					context.getTenantId());
+		} catch (SQLException e) {
+			throw new PaymentPluginApiException("#addPaymentMethodLocal failed to store on internal payments table.",
+					e.getMessage());
+		}
 	}
 }

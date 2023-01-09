@@ -99,8 +99,7 @@ public class GetnetHttpClient extends HttpClient {
 		Map<String, String> query = ImmutableMap.of();
 
 		try {
-			return doCall(GET, url + "/v1/cards/" + token, "", query, headers, String.class,
-					ResponseFormat.TEXT);
+			return doCall(GET, url + "/v1/cards/" + token, "", query, headers, String.class, ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
 			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());

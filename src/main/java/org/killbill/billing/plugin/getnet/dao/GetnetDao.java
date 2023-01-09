@@ -152,12 +152,50 @@ public class GetnetDao extends
 				DSL.using(conn, dialect, settings)
 						.insertInto(GETNET_PAYMENT_METHODS, GETNET_PAYMENT_METHODS.KB_ACCOUNT_ID,
 								GETNET_PAYMENT_METHODS.KB_PAYMENT_METHOD_ID, GETNET_PAYMENT_METHODS.GETNET_CARD_ID,
-								GETNET_PAYMENT_METHODS.IS_DELETED, GETNET_PAYMENT_METHODS.CREATED_DATE,
-								GETNET_PAYMENT_METHODS.UPDATED_DATE, GETNET_PAYMENT_METHODS.KB_TENANT_ID)
+								GETNET_PAYMENT_METHODS.IS_DEFAULT, GETNET_PAYMENT_METHODS.IS_DELETED,
+								GETNET_PAYMENT_METHODS.CREATED_DATE, GETNET_PAYMENT_METHODS.UPDATED_DATE,
+								GETNET_PAYMENT_METHODS.KB_TENANT_ID)
 						.values(kbAccountId.toString(), kbPaymentMethodId.toString(), (String) properties.get("token"),
-								(short) FALSE, toLocalDateTime(utcNow), toLocalDateTime(utcNow), kbTenantId.toString())
+								(short) (isDefault ? TRUE : FALSE), (short) FALSE, toLocalDateTime(utcNow),
+								toLocalDateTime(utcNow), kbTenantId.toString())
 						.execute();
 
+				return null;
+			}
+		});
+	}
+
+	public void updatePaymentMethod(final UUID kbAccountId, final UUID kbPaymentMethodId,
+			final Map<String, Object> properties, final DateTime utcNow, final UUID kbTenantId, String cardId)
+			throws SQLException {
+		execute(dataSource.getConnection(), new WithConnectionCallback<GetnetPaymentMethodsRecord>() {
+			@Override
+			public GetnetPaymentMethodsRecord withConnection(final Connection conn) throws SQLException {
+				DSL.using(conn, dialect, settings).update(GETNET_PAYMENT_METHODS)
+						.set(GETNET_PAYMENT_METHODS.IS_DEFAULT,
+								(Boolean) properties.get("isDefault") ? (short) TRUE : (short) FALSE)
+						.set(GETNET_PAYMENT_METHODS.IS_DELETED,
+								(Boolean) properties.get("isDeleted") ? (short) TRUE : (short) FALSE)
+						.set(GETNET_PAYMENT_METHODS.UPDATED_DATE, toLocalDateTime(utcNow))
+						.where(GETNET_PAYMENT_METHODS.KB_PAYMENT_METHOD_ID.equal(kbPaymentMethodId.toString()))
+						.and(GETNET_PAYMENT_METHODS.GETNET_CARD_ID.equal(cardId))
+						.and(GETNET_PAYMENT_METHODS.KB_TENANT_ID.equal(kbTenantId.toString()))
+						.and(GETNET_PAYMENT_METHODS.KB_ACCOUNT_ID.equal(kbAccountId.toString())).execute();
+				return null;
+			}
+		});
+	}
+
+	public void markAllNotDefaultCards(final UUID kbAccountId, final UUID kbTenantId, final DateTime utcNow)
+			throws SQLException {
+		execute(dataSource.getConnection(), new WithConnectionCallback<GetnetPaymentMethodsRecord>() {
+			@Override
+			public GetnetPaymentMethodsRecord withConnection(final Connection conn) throws SQLException {
+				DSL.using(conn, dialect, settings).update(GETNET_PAYMENT_METHODS)
+						.set(GETNET_PAYMENT_METHODS.IS_DEFAULT, (short) FALSE)
+						.set(GETNET_PAYMENT_METHODS.UPDATED_DATE, toLocalDateTime(utcNow))
+						.where(GETNET_PAYMENT_METHODS.KB_TENANT_ID.equal(kbTenantId.toString()))
+						.and(GETNET_PAYMENT_METHODS.KB_ACCOUNT_ID.equal(kbAccountId.toString())).execute();
 				return null;
 			}
 		});

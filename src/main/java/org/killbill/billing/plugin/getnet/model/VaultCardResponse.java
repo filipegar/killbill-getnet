@@ -45,42 +45,146 @@ import com.google.gson.annotations.SerializedName;
  */
 public class VaultCardResponse {
 	@SerializedName("card_id")
-	public String card_id = null;
+	private String cardId = null;
 
 	@SerializedName("last_four_digits")
-	public String last_four_digits = null;
+	private String lastFourDigits = null;
 
-	public String bin = null;
+	private String bin = null;
 
 	@SerializedName("expiration_month")
-	public String expiration_month = null;
+	private String expirationMonth = null;
 
 	@SerializedName("expiration_year")
-	public String expiration_year = null;
+	private String expirationYear = null;
 
 	@SerializedName("brand")
-	public String brand = null;
+	private String brand = null;
 
 	@SerializedName("cardholder_name")
-	public String cardholder_name = null;
+	private String cardholderName = null;
 
 	@SerializedName("customer_id")
-	public String customer_id = null;
+	private String customerId = null;
 
 	@SerializedName("number_token")
-	public String number_token = null;
+	private String numberToken = null;
 
 	@SerializedName("used_at")
-	public String used_at = null;
+	private String usedAt = null;
 
 	@SerializedName("created_at")
-	public String created_at = null;
+	private String createdAt = null;
 
 	@SerializedName("updated_at")
-	public String updated_at = null;
+	private String updatedAt = null;
 
 	@SerializedName("status")
-	public String status = null;
+	private String status = null;
+
+	public String getCardId() {
+		return cardId;
+	}
+
+	public void setCardId(String cardId) {
+		this.cardId = cardId;
+	}
+
+	public String getLastFourDigits() {
+		return lastFourDigits;
+	}
+
+	public void setLastFourDigits(String lastFourDigits) {
+		this.lastFourDigits = lastFourDigits;
+	}
+
+	public String getBin() {
+		return bin;
+	}
+
+	public void setBin(String bin) {
+		this.bin = bin;
+	}
+
+	public String getExpirationMonth() {
+		return expirationMonth;
+	}
+
+	public void setExpirationMonth(String expirationMonth) {
+		this.expirationMonth = expirationMonth;
+	}
+
+	public String getExpirationYear() {
+		return expirationYear;
+	}
+
+	public void setExpirationYear(String expirationYear) {
+		this.expirationYear = expirationYear;
+	}
+
+	public String getBrand() {
+		return brand;
+	}
+
+	public void setBrand(String brand) {
+		this.brand = brand;
+	}
+
+	public String getCardholderName() {
+		return cardholderName;
+	}
+
+	public void setCardholderName(String cardholderName) {
+		this.cardholderName = cardholderName;
+	}
+
+	public String getCustomerId() {
+		return customerId;
+	}
+
+	public void setCustomerId(String customerId) {
+		this.customerId = customerId;
+	}
+
+	public String getNumberToken() {
+		return numberToken;
+	}
+
+	public void setNumberToken(String numberToken) {
+		this.numberToken = numberToken;
+	}
+
+	public String getUsedAt() {
+		return usedAt;
+	}
+
+	public void setUsedAt(String usedAt) {
+		this.usedAt = usedAt;
+	}
+
+	public String getCreatedAt() {
+		return createdAt;
+	}
+
+	public void setCreatedAt(String createdAt) {
+		this.createdAt = createdAt;
+	}
+
+	public String getUpdatedAt() {
+		return updatedAt;
+	}
+
+	public void setUpdatedAt(String updatedAt) {
+		this.updatedAt = updatedAt;
+	}
+
+	public String getStatus() {
+		return status;
+	}
+
+	public void setStatus(String status) {
+		this.status = status;
+	}
 
 	@Override
 	public String toString() {
@@ -97,24 +201,24 @@ public class VaultCardResponse {
 			return false;
 		}
 		VaultCardResponse vaultCardResponse = (VaultCardResponse) o;
-		return Objects.equals(this.card_id, vaultCardResponse.card_id)
-				&& Objects.equals(this.last_four_digits, vaultCardResponse.last_four_digits)
-				&& Objects.equals(this.expiration_month, vaultCardResponse.expiration_month)
-				&& Objects.equals(this.expiration_year, vaultCardResponse.expiration_year)
+		return Objects.equals(this.cardId, vaultCardResponse.cardId)
+				&& Objects.equals(this.lastFourDigits, vaultCardResponse.lastFourDigits)
+				&& Objects.equals(this.expirationMonth, vaultCardResponse.expirationMonth)
+				&& Objects.equals(this.expirationYear, vaultCardResponse.expirationYear)
 				&& Objects.equals(this.brand, vaultCardResponse.brand)
-				&& Objects.equals(this.cardholder_name, vaultCardResponse.cardholder_name)
-				&& Objects.equals(this.customer_id, vaultCardResponse.customer_id)
-				&& Objects.equals(this.number_token, vaultCardResponse.number_token)
-				&& Objects.equals(this.used_at, vaultCardResponse.used_at)
-				&& Objects.equals(this.created_at, vaultCardResponse.created_at)
-				&& Objects.equals(this.updated_at, vaultCardResponse.updated_at)
+				&& Objects.equals(this.cardholderName, vaultCardResponse.cardholderName)
+				&& Objects.equals(this.customerId, vaultCardResponse.customerId)
+				&& Objects.equals(this.numberToken, vaultCardResponse.numberToken)
+				&& Objects.equals(this.usedAt, vaultCardResponse.usedAt)
+				&& Objects.equals(this.createdAt, vaultCardResponse.createdAt)
+				&& Objects.equals(this.updatedAt, vaultCardResponse.updatedAt)
 				&& Objects.equals(this.status, vaultCardResponse.status);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(card_id, last_four_digits, expiration_month, expiration_year, brand, cardholder_name,
-				customer_id, number_token, used_at, created_at, updated_at, status);
+		return Objects.hash(cardId, lastFourDigits, expirationMonth, expirationYear, brand, cardholderName, customerId,
+				numberToken, usedAt, createdAt, updatedAt, status);
 	}
 
 }

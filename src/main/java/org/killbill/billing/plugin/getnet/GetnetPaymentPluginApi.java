@@ -330,7 +330,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			String res = client.saveCardToVault(vaultCard);
 			VaultCardResponse response = gson.fromJson(res, VaultCardResponse.class);
 
-			Map<String, String> daoProperties = ImmutableMap.of("token", response.card_id);
+			Map<String, String> daoProperties = ImmutableMap.of("token", response.getCardId());
 			getnetDao.addPaymentMethod(kbAccountId, kbPaymentMethodId, setDefault, daoProperties, clock.getUTCNow(),
 					context.getTenantId());
 
@@ -374,20 +374,23 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
 		PaymentMethod paymentMethod = null;
 		List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+		Gson gson = new Gson();
+
 		try {
 			paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId, false, false,
 					properties, context);
-			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+			String res = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+			VaultCardResponse cardRes = gson.fromJson(res, VaultCardResponse.class);
 
-			outputProperties.add(new PluginProperty("getnetCardId", cardRes.card_id, false));
-			outputProperties.add(new PluginProperty("brand", cardRes.brand, false));
-			outputProperties.add(new PluginProperty("lastFourDigits", cardRes.last_four_digits, false));
-			outputProperties.add(new PluginProperty("expirationMonth", cardRes.expiration_month, false));
-			outputProperties.add(new PluginProperty("expirationYear", cardRes.expiration_year, false));
-			outputProperties.add(new PluginProperty("customerId", cardRes.customer_id, false));
-			outputProperties.add(new PluginProperty("cardholderName", cardRes.cardholder_name, false));
-			outputProperties.add(new PluginProperty("usedAt", cardRes.used_at, false));
-			outputProperties.add(new PluginProperty("status", cardRes.status, false));
+			outputProperties.add(new PluginProperty("getnetCardId", cardRes.getCardId(), false));
+			outputProperties.add(new PluginProperty("brand", cardRes.getBrand(), false));
+			outputProperties.add(new PluginProperty("lastFourDigits", cardRes.getLastFourDigits(), false));
+			outputProperties.add(new PluginProperty("expirationMonth", cardRes.getExpirationMonth(), false));
+			outputProperties.add(new PluginProperty("expirationYear", cardRes.getExpirationYear(), false));
+			outputProperties.add(new PluginProperty("customerId", cardRes.getCustomerId(), false));
+			outputProperties.add(new PluginProperty("cardholderName", cardRes.getCardholderName(), false));
+			outputProperties.add(new PluginProperty("usedAt", cardRes.getUsedAt(), false));
+			outputProperties.add(new PluginProperty("status", cardRes.getStatus(), false));
 
 			return new PluginPaymentMethodPlugin(kbPaymentMethodId, paymentMethod.getExternalKey(), false,
 					outputProperties);
@@ -503,11 +506,14 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			final BigDecimal amount, final Currency currency, final Iterable<PluginProperty> properties,
 			final CallContext context) throws PaymentPluginApiException {
 		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin = null;
+		Gson gson = new Gson();
+		String res = null;
 
 		try {
 			final PaymentMethod paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId,
 					false, false, properties, context);
-			VaultCardResponse cardRes = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+			res = client.exchangeTokenForNumberToken(paymentMethod.getExternalKey().toString());
+			VaultCardResponse cardRes = gson.fromJson(res, VaultCardResponse.class);
 
 			PaymentCredit getnetPayment = new PaymentCredit();
 			getnetPayment.setCurrency(currency.toString());
@@ -529,17 +535,16 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			creditTransaction.setNumberInstallments(BigDecimal.valueOf(1));
 			creditTransaction.setSoftDescriptor(("COB " + kbTransactionId.toString()).substring(0, 20));
 			CardCredit card = new CardCredit();
-			card.setNumberToken(cardRes.number_token);
-			card.setCardholderName(cardRes.cardholder_name);
-			card.setExpirationMonth(cardRes.expiration_month);
-			card.setExpirationYear(cardRes.expiration_year);
-			card.setBrand(cardRes.brand);
+			card.setNumberToken(cardRes.getNumberToken());
+			card.setCardholderName(cardRes.getCardholderName());
+			card.setExpirationMonth(cardRes.getExpirationMonth());
+			card.setExpirationYear(cardRes.getExpirationYear());
+			card.setBrand(cardRes.getBrand());
 			creditTransaction.setCard(card);
 			getnetPayment.setCredit(creditTransaction);
 
-			String res = client.sendPaymentRequest(getnetPayment);
+			res = client.sendPaymentRequest(getnetPayment);
 			logger.debug("[GETNET] PAYMNET RESPONSE" + res);
-			Gson gson = new Gson();
 			PaymentCreditResponse response = gson.fromJson(res, PaymentCreditResponse.class);
 
 			try {

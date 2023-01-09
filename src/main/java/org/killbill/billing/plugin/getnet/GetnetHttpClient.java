@@ -32,7 +32,6 @@ import java.util.concurrent.TimeoutException;
 import org.killbill.billing.payment.plugin.api.PaymentPluginApiException;
 import org.killbill.billing.plugin.getnet.model.PaymentCredit;
 import org.killbill.billing.plugin.getnet.model.VaultCard;
-import org.killbill.billing.plugin.getnet.model.VaultCardResponse;
 import org.killbill.billing.plugin.util.http.HttpClient;
 import org.killbill.billing.plugin.util.http.InvalidRequest;
 import org.killbill.billing.plugin.util.http.ResponseFormat;
@@ -94,14 +93,14 @@ public class GetnetHttpClient extends HttpClient {
 		throw new Error("Failed");
 	}
 
-	public VaultCardResponse exchangeTokenForNumberToken(String token) throws PaymentPluginApiException {
+	public String exchangeTokenForNumberToken(String token) throws PaymentPluginApiException {
 		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/json", "Authorization",
 				this.getAccessToken(), "seller_id", sellerId);
 		Map<String, String> query = ImmutableMap.of();
 
 		try {
-			return doCall(GET, url + "/v1/cards/" + token, "", query, headers, VaultCardResponse.class,
-					ResponseFormat.JSON);
+			return doCall(GET, url + "/v1/cards/" + token, "", query, headers, String.class,
+					ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
 			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());

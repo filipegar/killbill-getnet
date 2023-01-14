@@ -430,7 +430,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	@Override
 	public void resetPaymentMethods(UUID kbAccountId, List<PaymentMethodInfoPlugin> paymentMethods,
 			Iterable<PluginProperty> properties, CallContext context) throws PaymentPluginApiException {
-		throw new PaymentPluginApiException("INTERNAL", "#resetPaymentMethods not supported.");
+		//
 	}
 
 	@Override

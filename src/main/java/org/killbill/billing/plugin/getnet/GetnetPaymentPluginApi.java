@@ -89,20 +89,16 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	private Clock clock;
 	private GetnetHttpClient client;
 	private GetnetDao getnetDao;
-	private OSGIConfigPropertiesService configProperties;
+	private final GetnetConfigurationHandler getnetConfigurationHandler;
 
 	public GetnetPaymentPluginApi(final OSGIKillbillAPI killbillAPI, final Clock clock,
-			OSGIConfigPropertiesService configProperties, GetnetDao getnetDao) {
+			OSGIConfigPropertiesService configProperties, GetnetDao getnetDao,
+			GetnetConfigurationHandler getnetConfigurationHandler) {
 		this.killbillAPI = killbillAPI;
 		this.clock = clock;
 		this.getnetDao = getnetDao;
-		this.configProperties = configProperties;
-
-		try {
-			this.client = new GetnetHttpClient(configProperties.getProperties());
-		} catch (GeneralSecurityException e) {
-			logger.error("[Getnet] Failed to create http client.");
-		}
+		this.getnetConfigurationHandler = getnetConfigurationHandler;
+		this.client = null;
 	}
 
 	@Override
@@ -119,6 +115,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
 		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin = null;
+
+		this.ensureClient(context.getTenantId());
 
 		try {
 			GetnetPaymentsRecord record = getnetDao.getSuccessfulAuthorizationResponse(kbPaymentId,
@@ -163,6 +161,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public PaymentTransactionInfoPlugin voidPayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
 			UUID kbPaymentMethodId, Iterable<PluginProperty> properties, CallContext context)
 			throws PaymentPluginApiException {
+		this.ensureClient(context.getTenantId());
 		try {
 			Payment originalPayment = killbillAPI.getPaymentApi().getPayment(kbPaymentId, true, false, properties,
 					context);
@@ -234,6 +233,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
 		PaymentTransactionInfoPlugin paymentTransactionInfoPlugin = null;
+
+		this.ensureClient(context.getTenantId());
 
 		try {
 			GetnetPaymentsRecord record = null;
@@ -326,6 +327,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	public void deletePaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, Iterable<PluginProperty> properties,
 			CallContext context) throws PaymentPluginApiException {
 		GetnetPaymentMethodsRecord record;
+		this.ensureClient(context.getTenantId());
+
 		try {
 			record = getnetDao.getPaymentMethod(kbPaymentMethodId, context.getTenantId());
 			try {
@@ -348,6 +351,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 		List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
 		Gson gson = new Gson();
 		PaymentMethod paymentMethod = null;
+		this.ensureClient(context.getTenantId());
 
 		try {
 			paymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(kbPaymentMethodId, false, false,
@@ -389,6 +393,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			return returnList;
 		}
 
+		this.ensureClient(context.getTenantId());
 		try {
 			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
 			List<PaymentMethod> payments = killbillAPI.getPaymentApi().getAccountPaymentMethods(kbAccountId, false,
@@ -495,6 +500,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 		Gson gson = new Gson();
 		String res = null;
 
+		this.ensureClient(context.getTenantId());
+
 		try {
 			GetnetPaymentMethodsRecord cardRecord = getnetDao.getPaymentMethod(kbPaymentMethodId,
 					context.getTenantId());
@@ -563,6 +570,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 		VaultCard vaultCard = new VaultCard();
 		List<PluginProperty> props = paymentMethodProps.getProperties();
 		Gson gson = new Gson();
+		this.ensureClient(context.getTenantId());
 		for (int i = 0; i < props.size(); i++) {
 			switch (props.get(i).getKey()) {
 			case "ccFirstName":
@@ -584,8 +592,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			}
 		}
 
-		vaultCard.setVerifyCard(Boolean.valueOf(
-				configProperties.getProperties().getProperty(GetnetActivator.PROPERTY_PREFIX + "verify_card", "true")));
+		vaultCard.setVerifyCard(Boolean.valueOf(getnetConfigurationHandler.getConfigurable(context.getTenantId())
+				.getProperty(GetnetActivator.PROPERTY_PREFIX + "verify_card", "true")));
 
 		try {
 			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
@@ -615,6 +623,17 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 		} catch (SQLException e) {
 			throw new PaymentPluginApiException("#addPaymentMethodLocal failed to store on internal payments table.",
 					e.getMessage());
+		}
+	}
+
+	private void ensureClient(UUID tenantId) throws PaymentPluginApiException {
+		if (this.client == null || !this.client.getTenantId().equals(tenantId)) {
+			try {
+				this.client = new GetnetHttpClient(getnetConfigurationHandler.getConfigurable(tenantId), tenantId);
+			} catch (GeneralSecurityException e) {
+				logger.error("[Getnet] Failed to initialize http client.");
+				throw new PaymentPluginApiException("#ensureClient, failed to initialize http client.", e.getMessage());
+			}
 		}
 	}
 }

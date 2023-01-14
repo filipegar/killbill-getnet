@@ -21,10 +21,13 @@
 package org.killbill.billing.plugin.getnet;
 
 import java.util.Hashtable;
+import java.util.Properties;
 
 import org.killbill.billing.osgi.api.OSGIPluginProperties;
 import org.killbill.billing.osgi.libs.killbill.KillbillActivatorBase;
 import org.killbill.billing.payment.plugin.api.PaymentPluginApi;
+import org.killbill.billing.plugin.api.notification.PluginConfigurationEventHandler;
+import org.killbill.billing.plugin.core.config.PluginEnvironmentConfig;
 import org.killbill.billing.plugin.getnet.dao.GetnetDao;
 import org.osgi.framework.BundleContext;
 
@@ -35,20 +38,36 @@ public class GetnetActivator extends KillbillActivatorBase {
 	public static final String PLUGIN_NAME = "killbill-getnet";
 	public static final String PROPERTY_PREFIX = "org.killbill.billing.plugin.getnet.";
 
+	private GetnetConfigurationHandler getnetConfigurationHandler;
+
 	@Override
 	public void start(final BundleContext context) throws Exception {
 		super.start(context);
 
+		final String region = PluginEnvironmentConfig.getRegion(configProperties.getProperties());
+
+		// Register an event listener for plugin configuration
+		getnetConfigurationHandler = new GetnetConfigurationHandler(region, PLUGIN_NAME, killbillAPI);
+		final Properties globalConfiguration = getnetConfigurationHandler
+				.createConfigurable(configProperties.getProperties());
+		getnetConfigurationHandler.setDefaultConfigurable(globalConfiguration);
+
 		final GetnetDao getnetDao = new GetnetDao(dataSource.getDataSource());
 
 		final GetnetPaymentPluginApi pluginApi = new GetnetPaymentPluginApi(killbillAPI, clock.getClock(),
-				configProperties, getnetDao);
+				configProperties, getnetDao, getnetConfigurationHandler);
+
 		registerPaymentPluginApi(context, pluginApi);
+		registerHandlers();
 	}
 
 	private void registerPaymentPluginApi(final BundleContext context, final PaymentPluginApi api) {
 		final Hashtable<String, String> props = new Hashtable<String, String>();
 		props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
 		registrar.registerService(context, PaymentPluginApi.class, api, props);
+	}
+
+	private void registerHandlers() {
+		new PluginConfigurationEventHandler(getnetConfigurationHandler);
 	}
 }

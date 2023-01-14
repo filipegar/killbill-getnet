@@ -26,6 +26,7 @@ import java.security.GeneralSecurityException;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -49,8 +50,9 @@ public class GetnetHttpClient extends HttpClient {
 	private String clientId;
 	private String clientSecret;
 	private static final Logger logger = LoggerFactory.getLogger(GetnetHttpClient.class);
+	private UUID tenantId;
 
-	public GetnetHttpClient(Properties configProperties) throws GeneralSecurityException {
+	public GetnetHttpClient(Properties configProperties, UUID tenantUuid) throws GeneralSecurityException {
 		super(configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "url", "https://api.getnet.com.br"), null,
 				null, null, null, true);
 
@@ -58,15 +60,16 @@ public class GetnetHttpClient extends HttpClient {
 		this.clientId = configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "client_id");
 		this.clientSecret = configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "client_secret");
 		this.accessToken = "";
+		this.tenantId = tenantUuid;
 	}
 
-	public void doLogin() {
+	public void doLogin() throws PaymentPluginApiException {
 		String res = this.doLogin(clientId, clientSecret, sellerId);
 		JsonObject response = new Gson().fromJson(res, JsonObject.class);
 		accessToken = response.get("token_type").getAsString() + " " + response.get("access_token").getAsString();
 	}
 
-	public String doLogin(String client_id, String client_secret, String seller_id) {
+	public String doLogin(String client_id, String client_secret, String seller_id) throws PaymentPluginApiException {
 		String auth = client_id + ":" + client_secret;
 		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/x-www-form-urlencoded",
 				"Authorization", "Basic " + Base64.getEncoder().encodeToString(auth.getBytes()));
@@ -75,22 +78,13 @@ public class GetnetHttpClient extends HttpClient {
 		try {
 			return doCall(POST, url + "/auth/oauth/v2/token", "scope=oob&grant_type=client_credentials", query, headers,
 					String.class, ResponseFormat.TEXT);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (ExecutionException e) {
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (TimeoutException e) {
-			logger.error("[GETNET]" + e.getMessage());
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (URISyntaxException e) {
-			logger.error("[GETNET]" + e.getMessage());
+		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {
+			logger.error("[GETNET] doLogin error - " + e.getMessage());
+			throw new PaymentPluginApiException("Failed communicate with Getnet.", e);
 		} catch (InvalidRequest e) {
-			logger.error("[GETNET]" + e.getMessage());
+			logger.error("[GETNET] doLogin failed - " + e.getMessage());
+			throw new PaymentPluginApiException("Failed to authenticate on Getnet.", e);
 		}
-
-		throw new Error("Failed");
 	}
 
 	public String exchangeTokenForNumberToken(String token) throws PaymentPluginApiException {
@@ -254,12 +248,16 @@ public class GetnetHttpClient extends HttpClient {
 		}
 	}
 
-	public String getAccessToken() {
+	public String getAccessToken() throws PaymentPluginApiException {
 		if (accessToken.isEmpty()) {
 			doLogin();
 		}
 
 		return accessToken;
+	}
+
+	public UUID getTenantId() {
+		return tenantId;
 	}
 
 }

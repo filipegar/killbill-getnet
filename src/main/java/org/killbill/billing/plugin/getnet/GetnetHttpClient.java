@@ -22,6 +22,7 @@ package org.killbill.billing.plugin.getnet;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.charset.Charset;
 import java.security.GeneralSecurityException;
 import java.util.Base64;
 import java.util.Map;
@@ -30,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import org.joda.time.DateTime;
 import org.killbill.billing.payment.plugin.api.PaymentPluginApiException;
 import org.killbill.billing.plugin.getnet.model.PaymentCredit;
 import org.killbill.billing.plugin.getnet.model.VaultCard;
@@ -51,6 +53,7 @@ public class GetnetHttpClient extends HttpClient {
 	private String clientSecret;
 	private static final Logger logger = LoggerFactory.getLogger(GetnetHttpClient.class);
 	private UUID tenantId;
+	private DateTime tokenExpires;
 
 	public GetnetHttpClient(Properties configProperties, UUID tenantUuid) throws GeneralSecurityException {
 		super(configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "url", "https://api.getnet.com.br"), null,
@@ -61,18 +64,22 @@ public class GetnetHttpClient extends HttpClient {
 		this.clientSecret = configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "client_secret");
 		this.accessToken = "";
 		this.tenantId = tenantUuid;
+
+		this.tokenExpires = DateTime.now();
 	}
 
 	public void doLogin() throws PaymentPluginApiException {
 		String res = this.doLogin(clientId, clientSecret, sellerId);
 		JsonObject response = new Gson().fromJson(res, JsonObject.class);
-		accessToken = response.get("token_type").getAsString() + " " + response.get("access_token").getAsString();
+		this.accessToken = response.get("token_type").getAsString() + " " + response.get("access_token").getAsString();
+		this.tokenExpires = DateTime.now().plus(response.get("expires_in").getAsLong() * 1000);
 	}
 
 	public String doLogin(String client_id, String client_secret, String seller_id) throws PaymentPluginApiException {
 		String auth = client_id + ":" + client_secret;
 		Map<String, String> headers = ImmutableMap.of("Content-Type", "application/x-www-form-urlencoded",
-				"Authorization", "Basic " + Base64.getEncoder().encodeToString(auth.getBytes()));
+				"Authorization",
+				"Basic " + Base64.getEncoder().encodeToString(auth.getBytes(Charset.forName("UTF-8"))));
 		Map<String, String> query = ImmutableMap.of();
 
 		try {
@@ -249,15 +256,15 @@ public class GetnetHttpClient extends HttpClient {
 	}
 
 	public String getAccessToken() throws PaymentPluginApiException {
-		if (accessToken.isEmpty()) {
+		if (this.accessToken.isEmpty() || this.tokenExpires.isAfterNow()) {
 			doLogin();
 		}
 
-		return accessToken;
+		return this.accessToken;
 	}
 
 	public UUID getTenantId() {
-		return tenantId;
+		return this.tenantId;
 	}
 
 }

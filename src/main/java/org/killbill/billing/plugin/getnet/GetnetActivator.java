@@ -67,7 +67,7 @@ public class GetnetActivator extends KillbillActivatorBase {
 		registrar.registerService(context, PaymentPluginApi.class, api, props);
 	}
 
-	private void registerHandlers() {
-		new PluginConfigurationEventHandler(getnetConfigurationHandler);
+	private PluginConfigurationEventHandler registerHandlers() {
+		return new PluginConfigurationEventHandler(getnetConfigurationHandler);
 	}
 }

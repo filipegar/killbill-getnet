@@ -38,6 +38,8 @@
         <url>https://github.com/filipegar/killbill-getnet-plugin/issues</url>
     </issueManagement>
     <properties>
+        <check.fail-spotbugs>true</check.fail-spotbugs>
+        <check.spotbugs-exclude-filter-file>spotbugs-exclude.xml</check.spotbugs-exclude-filter-file>
         <osgi.private>org.killbill.billing.plugin.getnet.*</osgi.private>
     </properties>
     <dependencies>

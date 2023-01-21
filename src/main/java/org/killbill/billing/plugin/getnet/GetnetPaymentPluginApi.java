@@ -23,6 +23,7 @@ package org.killbill.billing.plugin.getnet;
 import java.math.BigDecimal;
 import java.security.GeneralSecurityException;
 import java.sql.SQLException;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -474,6 +475,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 
 	public PaymentTransactionInfoPlugin buildPaymentTransactionInfoPlugin(GetnetPaymentsRecord record) {
 		List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+		DateTimeFormatter dtFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
 		outputProperties.add(new PluginProperty("paymentId", record.getGetnetPaymentId(), false));
 		outputProperties.add(new PluginProperty("sellerId", record.getSellerId(), false));
@@ -481,6 +483,10 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 		outputProperties.add(new PluginProperty("terminalNsu", record.getTerminalNsu(), false));
 		outputProperties.add(new PluginProperty("acquirerTransactionId", record.getAcquirerTransactionId(), false));
 		outputProperties.add(new PluginProperty("transactionId", record.getTransactionId(), false));
+		outputProperties.add(new PluginProperty("authorizedAt", dtFormat.format(record.getAuthorizedAt()), false));
+		outputProperties.add(new PluginProperty("softDescriptor", record.getSoftDescriptor(), false));
+		outputProperties.add(new PluginProperty("getnetStatus", record.getGetnetStatus(), false));
+		outputProperties.add(new PluginProperty("receivedAt", dtFormat.format(record.getReceivedAt()), false));
 
 		return new PluginPaymentTransactionInfoPlugin(UUID.fromString(record.getKbPaymentId()),
 				UUID.fromString(record.getKbPaymentTransactionId()),
@@ -554,8 +560,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
 					transactionType.equals(TransactionType.AUTHORIZE) ? TransactionType.AUTHORIZE
 							: TransactionType.PURCHASE,
-					amount, currency, PaymentPluginStatus.UNDEFINED, e.getMessage(), "E1000", null, null,
-					new DateTime(), null, null);
+					amount, currency, PaymentPluginStatus.CANCELED, e.getMessage(), "E1000", null, null, new DateTime(),
+					null, null);
 
 			logger.debug("[GETNET] Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
 			return paymentTransactionInfoPlugin;

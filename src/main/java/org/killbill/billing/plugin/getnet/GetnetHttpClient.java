@@ -103,7 +103,7 @@ public class GetnetHttpClient extends HttpClient {
 			return doCall(GET, url + "/v1/cards/" + token, "", query, headers, String.class, ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		}
 	}
 
@@ -119,7 +119,7 @@ public class GetnetHttpClient extends HttpClient {
 					ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		}
 	}
 
@@ -136,7 +136,7 @@ public class GetnetHttpClient extends HttpClient {
 					headers, String.class, ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		}
 	}
 
@@ -150,7 +150,7 @@ public class GetnetHttpClient extends HttpClient {
 					String.class, ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		}
 	}
 
@@ -163,7 +163,7 @@ public class GetnetHttpClient extends HttpClient {
 			return doCall(GET, url + "/v1/cards", "{}", query, headers, String.class, ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
 				| InvalidRequest e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		}
 	}
 
@@ -195,7 +195,7 @@ public class GetnetHttpClient extends HttpClient {
 			return doCall(POST, url + "/v1/payments/cancel/request", request.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		} catch (InvalidRequest e) {
 			if (e.getResponse().getStatusCode() == 400 && e.getResponse().hasResponseBody()) {
 				Gson gson = new Gson();
@@ -203,7 +203,7 @@ public class GetnetHttpClient extends HttpClient {
 				throw new PaymentPluginApiException(res.get("message").getAsString(), e);
 			}
 
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		}
 	}
 
@@ -220,7 +220,7 @@ public class GetnetHttpClient extends HttpClient {
 			return doCall(POST, url + "/v1/tokens/card", request.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		} catch (InvalidRequest e) {
 			if (e.getResponse().getStatusCode() == 400 && e.getResponse().hasResponseBody()) {
 				Gson gson = new Gson();
@@ -228,7 +228,7 @@ public class GetnetHttpClient extends HttpClient {
 				throw new PaymentPluginApiException(res.get("message").getAsString(), e);
 			}
 
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		}
 	}
 
@@ -242,7 +242,7 @@ public class GetnetHttpClient extends HttpClient {
 			return doCall(POST, url + "/v1/cards", vaultCard.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.", e.getMessage());
+			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
 		} catch (InvalidRequest e) {
 			if (e.getResponse().getStatusCode() == 400 && e.getResponse().hasResponseBody()) {
 				Gson gson = new Gson();
@@ -250,13 +250,13 @@ public class GetnetHttpClient extends HttpClient {
 				throw new PaymentPluginApiException(res.get("message").getAsString(), e);
 			}
 
-			throw new PaymentPluginApiException("Failed to process GETNET paymnet.",
-					"Failed to process GETNET paymnet.");
+			throw new PaymentPluginApiException("Failed to process GETNET payment.",
+					"Failed to process GETNET payment.");
 		}
 	}
 
 	public String getAccessToken() throws PaymentPluginApiException {
-		if (this.accessToken.isEmpty() || this.tokenExpires.isAfterNow()) {
+		if (this.accessToken.isEmpty() || DateTime.now().isAfter(tokenExpires)) {
 			doLogin();
 		}
 

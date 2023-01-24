@@ -238,7 +238,6 @@ public class GetnetHttpClient extends HttpClient {
 		Map<String, String> query = ImmutableMap.of();
 
 		try {
-
 			return doCall(POST, url + "/v1/cards", vaultCard.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
 		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {
@@ -247,7 +246,11 @@ public class GetnetHttpClient extends HttpClient {
 			if (e.getResponse().getStatusCode() == 400 && e.getResponse().hasResponseBody()) {
 				Gson gson = new Gson();
 				JsonObject res = gson.fromJson(e.getResponse().getResponseBody(), JsonObject.class);
-				throw new PaymentPluginApiException(res.get("message").getAsString(), e);
+				logger.error("GETNET SAVE CARD ERROR:" + e.getResponse().getResponseBody());
+				JsonObject details = res.get("details").getAsJsonArray().get(0).getAsJsonObject();
+				throw new PaymentPluginApiException(res.get("message").getAsString() + " - Erro reportado: "
+						+ details.get("status").getAsString() + ", " + details.get("description").getAsString() + " - "
+						+ details.get("description_detail").getAsString(), e);
 			}
 
 			throw new PaymentPluginApiException("Failed to process GETNET payment.",

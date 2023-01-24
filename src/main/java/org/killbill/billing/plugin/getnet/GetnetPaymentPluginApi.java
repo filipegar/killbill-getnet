@@ -603,7 +603,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 
 		try {
 			Account account = killbillAPI.getAccountUserApi().getAccountById(kbAccountId, context);
-			vaultCard.setCustomerId(account.getExternalKey());
+			vaultCard.setCustomerId(account.getExternalKey().toString());
 			String res = client.saveCardToVault(vaultCard);
 			VaultCardResponse response = gson.fromJson(res, VaultCardResponse.class);
 

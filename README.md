@@ -1,5 +1,5 @@
-# killbill-gocardless-example-plugin
-GoCardless Payment Plugin (tutorial)
+# killbill-getnet
+A [Getnet](https://getnet.com.br) payment plugin for Killbill
 
 ## Build
 
@@ -10,18 +10,26 @@ GoCardless Payment Plugin (tutorial)
 ## Installation
 
 ```
-kpm install_java_plugin gocardless --from-source-file target/gocardless-plugin-*-SNAPSHOT.jar --destination /var/tmp/bundles
+kpm install_java_plugin getnet --from-source-file target/getnet-plugin-*-SNAPSHOT.jar --destination /var/tmp/bundles
 ```
+Manually import the ddl.sql according to your database from the resources folder to create the necessary local tables for keeping Getnet metadata, such as payment confirmation and credit card tokens.
 
-## Testing
+## Setting-up
 
-Before starting Kill Bill, set the following environment variable (token can be found at https://manage-sandbox.gocardless.com/developers):
+*Keep in mind that this plugin was developed using the Hologação environment from Getnet, which is very similar to production BUT a lot different from the Sandbox. If you wish to try before putting in a live, real env, ask Getnet E-commerce support [here](https://developers.getnet.com.br/api#section/Como-comecar/Necessita-ajuda) for your own store Homologação credentials.*
 
+Before starting Kill Bill, be sure to upload the Plugin Config either thru Kaui or via API request to http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/getnet
 ```
-export GC_ACCESS_TOKEN=<ACCESS_TOKEN>
+org.killbill.billing.plugin.getnet.url=https://api-homologacao.getnet.com.br
+org.killbill.billing.plugin.getnet.seller_id=<uuid-sellerId>
+org.killbill.billing.plugin.getnet.client_id=<uuid-clientId>
+org.killbill.billing.plugin.getnet.client_secret=<uuid-clientSecret>
+org.killbill.billing.plugin.getnet.verify_card=false
 ```
+Verify Card controls if the card being stored on Getnet's vault should have a successful zero dollar auth performed during the tokenization flow. [Check Getnet docs for more details.](https://developers.getnet.com.br/api#tag/Cofre/paths/~1v1~1cards/post)
 
-The flow to create a mandate is as follows:
+## How to get started
+The flow to create a account, store a card and perform a transaction follows:
 
 1. Create a Kill Bill account for the customer
 ```
@@ -32,25 +40,15 @@ curl -v \
      -H 'X-Killbill-ApiSecret: lazar' \
      -H 'X-Killbill-CreatedBy: tutorial' \
      -H 'Content-Type: application/json' \
-     -d '{ "currency": "GBP" }' \
+     -d '{ "currency": "BRL" }' \
      'http://127.0.0.1:8080/1.0/kb/accounts'
 ```
 This returns the Kill Bill `accountId` in the `Location` header.
 
-2. Use the plugin `/checkout` API to create a redirect flow, generating a URL which you can send the customer to in order to have them set up a mandate
-```
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H 'X-Killbill-CreatedBy: tutorial' \
-     -H "Content-Type: application/json" \
-     'http://127.0.0.1:8080/plugins/killbill-gocardless/checkout?kbAccountId=<ACCOUNT_ID>'
-```
-This returns a `formUrl`. Have the customer fill the form with the bank account details.
+2. Use either Kaui or the API to add the credit card to the Getnet vault and store the token back to the database.
 
-3. Finally, complete the redirect flow by adding the mandate as a payment method in Kill Bill
+You can either tokenize the credit card thru Killbill, by passing all the credit card data - it is **very important** that you supply the externalKey property with ANY unique value in your database.
+
 ```
 curl -v \
      -X POST \
@@ -60,21 +58,46 @@ curl -v \
      -H 'X-Killbill-CreatedBy: tutorial' \
      -H 'Content-Type: application/json' \
      -d '{
-       "pluginName": "killbill-gocardless",
+	   "externalKey": "123456",
+       "pluginName": "killbill-getnet",
        "pluginInfo": {
-         "properties": [
-           {
-             "key": "redirect_flow_id",
-             "value": "<redirect_flow_id>"
-           },
-           {
-             "key": "session_token",
-             "value": "killbill_token"
-           }
+         "properties": [{
+	         "key": "ccFirstName",
+	         "value": "ze maria da silva"
+          },
+          {
+	         "key": "ccExpirationMonth",
+	         "value": "02"
+          },
+          {
+	         "key": "ccExpirationYear",
+	         "value": "2029"
+          },
+          {
+	         "key": "ccNumber",
+	         "value": "4111111111111111"
+          }
          ]
        }
      }' \
-     'http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?isDefault=true'
+     'http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT-ID>/paymentMethods?isDefault=true'
+```
+
+3. If you already have the card token from the Getnet vault (because you tokenized thru your store front-end, past payment, etc), you may pass it back to Killbill and the plugin will store in its internal database tables.
+
+```
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{
+	   "externalKey": "123457",
+       "pluginName": "killbill-getnet"
+     }' \
+     'http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT-ID>/paymentMethods?isDefault=false&pluginProperty=cardId%3D<GETNET-VAULT-CARD-TOKEN>'
 ```
 
 4. You can then trigger payments against that payment method

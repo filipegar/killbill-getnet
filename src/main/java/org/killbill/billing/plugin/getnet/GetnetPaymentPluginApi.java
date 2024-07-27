@@ -557,11 +557,15 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			}
 		} catch (PaymentPluginApiException e) {
 			logger.error("[GETNET] Transaction may have failed. " + e.getMessage());
+			String errorType = e.getErrorType();
+			if (errorType.length() > 32) {
+				errorType = errorType.substring(0, 32);
+			}
 			paymentTransactionInfoPlugin = new PluginPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
 					transactionType.equals(TransactionType.AUTHORIZE) ? TransactionType.AUTHORIZE
 							: TransactionType.PURCHASE,
-					amount, currency, PaymentPluginStatus.CANCELED, e.getMessage(), "E1000", null, null, new DateTime(),
-					null, null);
+					amount, currency, PaymentPluginStatus.ERROR, e.getErrorMessage(), errorType, null, null,
+					new DateTime(), null, null);
 
 			logger.debug("[GETNET] Returning paymentTransactionInfoPlugin={}", paymentTransactionInfoPlugin);
 			return paymentTransactionInfoPlugin;
@@ -583,10 +587,15 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 				vaultCard.setCardholderName(props.get(i).getValue().toString());
 				break;
 			case "ccExpirationMonth":
-				vaultCard.setExpirationMonth(props.get(i).getValue().toString().substring(0, 2));
+				int month = Integer.parseInt(props.get(i).getValue().toString());
+				vaultCard.setExpirationMonth(String.format("%02d", month));
 				break;
 			case "ccExpirationYear":
-				vaultCard.setExpirationYear(props.get(i).getValue().toString().substring(0, 2));
+				String year = props.get(i).getValue().toString();
+				if (year.length() == 4) {
+					year = year.substring(2, 4);
+				}
+				vaultCard.setExpirationYear(year);
 				break;
 			case "ccNumber":
 				String res = client.tokenCard(kbAccountId.toString(), props.get(i).getValue().toString());

@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 public class GetnetHttpClient extends HttpClient {
@@ -117,9 +118,24 @@ public class GetnetHttpClient extends HttpClient {
 		try {
 			return doCall(POST, url + "/v1/payments/credit", payment.toString(), query, headers, String.class,
 					ResponseFormat.TEXT);
-		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException
-				| InvalidRequest e) {
+		} catch (InterruptedException | ExecutionException | TimeoutException | IOException | URISyntaxException e) {			
 			throw new PaymentPluginApiException("Failed to process GETNET payment.", e.getMessage());
+		} catch (InvalidRequest e) {
+			Gson gson = new Gson();
+			JsonObject response = gson.fromJson(e.getResponse().getResponseBody(), JsonObject.class);
+			String longError = "";
+			
+			if(response.has("details")) {
+				JsonArray details = response.getAsJsonArray("details");
+				if(details.size() >= 1) {
+					JsonObject entry = (JsonObject) details.get(0);
+					longError = entry.get("description").getAsString() + " - " + entry.get("description_detail").getAsString() + " - " + entry.get("status").getAsString();
+					
+					throw new PaymentPluginApiException(entry.get("error_code").getAsString(), longError);
+				}
+			}
+			
+			throw new PaymentPluginApiException(response.get("name").getAsString() + " " + response.get("message").getAsString(), e.getResponse().getResponseBody());
 		}
 	}
 

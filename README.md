@@ -25,8 +25,10 @@ org.killbill.billing.plugin.getnet.seller_id=<uuid-sellerId>
 org.killbill.billing.plugin.getnet.client_id=<uuid-clientId>
 org.killbill.billing.plugin.getnet.client_secret=<uuid-clientSecret>
 org.killbill.billing.plugin.getnet.verify_card=false
+org.killbill.billing.plugin.getnet.softdescriptor=Loja
 ```
-Verify Card controls if the card being stored on Getnet's vault should have a successful zero dollar auth performed during the tokenization flow. [Check Getnet docs for more details.](https://developers.getnet.com.br/api#tag/Cofre/paths/~1v1~1cards/post)
+Verify Card property controls if the card being stored on Getnet's vault should have a successful zero dollar auth performed during the tokenization flow. [Check Getnet docs for more details.](https://developers.getnet.com.br/api#tag/Cofre/paths/~1v1~1cards/post)
+Softdescriptor property can be set to "0" or not declared to disable soft-descriptor on transactions. At this time, Getnet imposes a limit of 22 chars to the field. The plugin will substring anything you set to 20, being the format "your property value*transaction id".
 
 ## How to get started
 The flow to create a account, store a card and perform a transaction follows:

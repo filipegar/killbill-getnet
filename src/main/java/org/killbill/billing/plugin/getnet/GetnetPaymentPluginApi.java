@@ -27,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -90,6 +91,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	private Clock clock;
 	private GetnetHttpClient client;
 	private GetnetDao getnetDao;
+	private Properties configProperties;
 	private final GetnetConfigurationHandler getnetConfigurationHandler;
 
 	public GetnetPaymentPluginApi(final OSGIKillbillAPI killbillAPI, final Clock clock,
@@ -100,6 +102,7 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 		this.getnetDao = getnetDao;
 		this.getnetConfigurationHandler = getnetConfigurationHandler;
 		this.client = null;
+		this.configProperties = null;
 	}
 
 	@Override
@@ -532,7 +535,12 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 			creditTransaction.setSaveCardData(false);
 			creditTransaction.setTransactionType(TransactionTypeEnum.FULL);
 			creditTransaction.setNumberInstallments(BigDecimal.valueOf(1));
-			creditTransaction.setSoftDescriptor(("COB " + kbTransactionId.toString()).substring(0, 20));
+			
+			String softDescriptor = this.configProperties.getProperty(GetnetActivator.PROPERTY_PREFIX + "softdescriptor");
+			if(softDescriptor != null && !softDescriptor.isEmpty()) {
+				creditTransaction.setSoftDescriptor((softDescriptor + "*" + kbTransactionId.toString()).substring(0, 20));
+			}
+			
 			CardCredit card = new CardCredit();
 			card.setNumberToken(cardRes.getNumberToken());
 			card.setCardholderName(cardRes.getCardholderName());
@@ -644,7 +652,8 @@ public class GetnetPaymentPluginApi implements PaymentPluginApi {
 	private void ensureClient(UUID tenantId) throws PaymentPluginApiException {
 		if (this.client == null || !this.client.getTenantId().equals(tenantId)) {
 			try {
-				this.client = new GetnetHttpClient(getnetConfigurationHandler.getConfigurable(tenantId), tenantId);
+				this.configProperties = getnetConfigurationHandler.getConfigurable(tenantId);
+				this.client = new GetnetHttpClient(this.configProperties, tenantId);
 			} catch (GeneralSecurityException e) {
 				logger.error("[Getnet] Failed to initialize http client.");
 				throw new PaymentPluginApiException("#ensureClient, failed to initialize http client.", e.getMessage());
